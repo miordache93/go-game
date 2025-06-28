@@ -1,0 +1,10 @@
+{
+  "name": "@go-game/go-game-e2e",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "implicitDependencies": [
+      "@go-game/go-game"
+    ]
+  }
+}
