@@ -3,6 +3,18 @@
   "include": [],
   "references": [
     {
+      "path": "../../libs/shared/types"
+    },
+    {
+      "path": "../../libs/shared/utils"
+    },
+    {
+      "path": "../../libs/game"
+    },
+    {
+      "path": "../../libs/ui"
+    },
+    {
       "path": "./tsconfig.app.json"
     },
     {

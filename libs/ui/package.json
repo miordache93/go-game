@@ -1,5 +1,5 @@
 {
-  "name": "@go-game/shared",
+  "name": "@go-game/ui",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",

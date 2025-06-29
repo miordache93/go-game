@@ -26,6 +26,9 @@
     },
     {
       "path": "./apps/go-game-api"
+    },
+    {
+      "path": "./libs/ui"
     }
   ]
 }

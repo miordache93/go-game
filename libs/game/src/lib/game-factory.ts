@@ -100,3 +100,39 @@ export function createBeginnerGame(playerNames?: {
 
   return new GameEngine(settings);
 }
+
+/**
+ * Creates a demo game with some pre-placed stones for visual demonstration
+ * TODO: Fix TypeScript issues and re-enable
+ */
+/*
+export function createDemoGame(): GameEngine {
+  const engine = createBeginnerGame({
+    black: 'Demo Black',
+    white: 'Demo White',
+  });
+
+  // Add some demo stones to showcase the board
+  // These represent a realistic game opening
+  const demoMoves = [
+    // Black opening moves
+    { player: Player.BLACK, position: { x: 2, y: 2 } }, // Bottom-left corner approach
+    { player: Player.WHITE, position: { x: 6, y: 2 } }, // Bottom-right corner approach
+    { player: Player.BLACK, position: { x: 2, y: 6 } }, // Top-left corner approach
+    { player: Player.WHITE, position: { x: 6, y: 6 } }, // Top-right corner approach
+    { player: Player.BLACK, position: { x: 4, y: 4 } }, // Center/tengen
+    { player: Player.WHITE, position: { x: 3, y: 3 } }, // Defensive move
+    { player: Player.BLACK, position: { x: 5, y: 5 } }, // Extension
+    { player: Player.WHITE, position: { x: 1, y: 4 } }, // Side extension
+    { player: Player.BLACK, position: { x: 7, y: 4 } }, // Opposite side
+    { player: Player.WHITE, position: { x: 4, y: 1 } }, // Bottom side
+  ];
+
+  // Place the demo stones
+  demoMoves.forEach(({ player, position }) => {
+    engine.makeMove(player, MoveType.PLACE_STONE, position);
+  });
+
+  return engine;
+}
+*/

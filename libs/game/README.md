@@ -1,7 +1,7 @@
-# game
+# @go-game/game
 
 This library was generated with [Nx](https://nx.dev).
 
-## Building
+## Running unit tests
 
-Run `nx build game` to build the library.
+Run `nx test @go-game/game` to execute the unit tests via [Vitest](https://vitest.dev/).

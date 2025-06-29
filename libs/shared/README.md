@@ -1,7 +1,7 @@
-# shared
+# @go-game/shared
 
 This library was generated with [Nx](https://nx.dev).
 
-## Building
+## Running unit tests
 
-Run `nx build shared` to build the library.
+Run `nx test @go-game/shared` to execute the unit tests via [Vitest](https://vitest.dev/).
