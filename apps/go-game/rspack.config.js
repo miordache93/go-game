@@ -2,9 +2,14 @@ const { NxAppRspackPlugin } = require('@nx/rspack/app-plugin');
 const { NxReactRspackPlugin } = require('@nx/rspack/react-plugin');
 const { join } = require('path');
 
+// GitHub Pages deployment configuration
+const isGitHubPages = process.env.GITHUB_PAGES === 'true';
+const baseHref = isGitHubPages ? '/go-game/' : '/';
+
 module.exports = {
   output: {
     path: join(__dirname, 'dist'),
+    publicPath: baseHref,
   },
   devServer: {
     port: 4200,
@@ -19,7 +24,7 @@ module.exports = {
       tsConfig: './tsconfig.app.json',
       main: './src/main.tsx',
       index: './src/index.html',
-      baseHref: '/',
+      baseHref: baseHref,
       assets: ['./src/favicon.ico', './src/assets'],
       styles: ['./src/styles.scss'],
       outputHashing: process.env['NODE_ENV'] === 'production' ? 'all' : 'none',
