@@ -65,6 +65,8 @@
   "workspaces": [
     "apps/*",
     "go-game-api",
-    "go-game-api-e2e"
+    "go-game-api-e2e",
+    "libs/*",
+    "libs/shared/*"
   ]
 }
