@@ -37,13 +37,28 @@ jobs:
         env:
           GITHUB_PAGES: true
 
+      - name: Debug - List build outputs
+        run: |
+          echo "=== Root dist directory ==="
+          ls -la dist/ || echo "No dist directory found"
+          echo "=== Apps directory ==="
+          ls -la apps/ || echo "No apps directory found"
+          echo "=== Go-game app directory ==="
+          ls -la apps/go-game/ || echo "No go-game directory found"
+          echo "=== Go-game dist directory ==="
+          ls -la apps/go-game/dist/ || echo "No go-game/dist directory found"
+          echo "=== Find all dist directories ==="
+          find . -name "dist" -type d
+          echo "=== Find all HTML files ==="
+          find . -name "*.html" -type f
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist/apps/go-game'
+          path: './apps/go-game/dist'
 
   deploy:
     environment:
