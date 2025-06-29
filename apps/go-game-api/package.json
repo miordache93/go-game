@@ -1,0 +1,66 @@
+{
+  "name": "@go-game/go-game-api",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "targets": {
+      "build": {
+        "executor": "@nx/esbuild:esbuild",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "defaultConfiguration": "production",
+        "options": {
+          "platform": "node",
+          "outputPath": "dist/apps/go-game-api",
+          "format": [
+            "cjs"
+          ],
+          "bundle": false,
+          "main": "apps/go-game-api/src/main.ts",
+          "tsConfig": "apps/go-game-api/tsconfig.app.json",
+          "assets": [
+            "apps/go-game-api/src/assets"
+          ],
+          "esbuildOptions": {
+            "sourcemap": true,
+            "outExtension": {
+              ".js": ".js"
+            }
+          }
+        },
+        "configurations": {
+          "development": {},
+          "production": {
+            "esbuildOptions": {
+              "sourcemap": false,
+              "outExtension": {
+                ".js": ".js"
+              }
+            }
+          }
+        }
+      },
+      "serve": {
+        "continuous": true,
+        "executor": "@nx/js:node",
+        "defaultConfiguration": "development",
+        "dependsOn": [
+          "build"
+        ],
+        "options": {
+          "buildTarget": "@go-game/go-game-api:build",
+          "runBuildTargetDependencies": false
+        },
+        "configurations": {
+          "development": {
+            "buildTarget": "@go-game/go-game-api:build:development"
+          },
+          "production": {
+            "buildTarget": "@go-game/go-game-api:build:production"
+          }
+        }
+      }
+    }
+  }
+}

@@ -8,6 +8,12 @@
     },
     {
       "path": "./apps/go-game"
+    },
+    {
+      "path": "./go-game-api-e2e"
+    },
+    {
+      "path": "./go-game-api"
     }
   ]
 }
