@@ -13,15 +13,24 @@ import { notifications } from '@mantine/notifications';
 import { IconInfoCircle, IconPalette } from '@tabler/icons-react';
 import { GoBoard } from './GoBoard';
 import { GameControls } from './GameControls';
+import { ScoringControls } from './ScoringControls';
 import { GameEngine } from '../game';
-import { createBeginnerGame } from '../game-factory';
-import { Player, MoveType, Position, BoardSize } from '@go-game/types';
+import { createBeginnerGame, createScoringTestGame } from '../game-factory';
+import {
+  Player,
+  MoveType,
+  Position,
+  BoardSize,
+  GamePhase,
+} from '@go-game/types';
 
-interface GameProps {
+export interface GameProps {
   /** Initial board size */
   boardSize?: BoardSize;
   /** Board theme */
   boardTheme?: 'classic' | 'modern' | 'zen';
+  /** Use test game for scoring demo */
+  useTestGame?: boolean;
 }
 
 /**
@@ -37,13 +46,23 @@ interface GameProps {
 export function Game({
   boardSize = BoardSize.SMALL,
   boardTheme = 'modern', // Modern theme for better visual impact
+  useTestGame: initialUseTestGame = false,
 }: GameProps) {
   // Theme state
   const [currentTheme, setCurrentTheme] = useState<
     'classic' | 'modern' | 'zen'
   >(boardTheme);
+
+  // Test mode state for development
+  const [useTestGame, setUseTestGame] = useState(initialUseTestGame);
+
   // Initialize game engine with demo stones
   const [gameEngine, setGameEngine] = useState<GameEngine>(() => {
+    // Use test game if requested (for easy scoring testing)
+    if (useTestGame) {
+      return createScoringTestGame();
+    }
+
     const engine = createBeginnerGame();
 
     // Add demo stones to showcase the board
@@ -86,9 +105,25 @@ export function Game({
   // Get current game state
   const gameState = gameEngine.getGameState();
 
-  // Handle stone placement
+  // Handle stone placement or dead stone marking
   const handleIntersectionClick = useCallback(
     (position: Position) => {
+      // In scoring phase, mark dead stones
+      if (gameState.phase === GamePhase.SCORING) {
+        const success = gameEngine.markDeadStones(position);
+        if (success) {
+          notifications.show({
+            title: '💀 Dead Stones Marked',
+            message: 'Click on groups to toggle dead/alive status',
+            color: 'yellow',
+            autoClose: 2000,
+          });
+          forceRefresh();
+        }
+        return;
+      }
+
+      // Normal stone placement during playing phase
       console.log(
         `🖱️ Click at (${position.x},${position.y}) by ${gameState.currentPlayer}`
       );
@@ -140,7 +175,7 @@ export function Game({
         });
       }
     },
-    [gameEngine, gameState.currentPlayer, forceRefresh]
+    [gameEngine, gameState.currentPlayer, gameState.phase, forceRefresh]
   );
 
   // Handle pass move
@@ -157,11 +192,12 @@ export function Game({
         autoClose: 2000,
       });
 
-      // Check if game ended
-      if (gameEngine.getGamePhase() !== gameState.phase) {
+      // Check if game entered scoring phase
+      const newPhase = gameEngine.getGamePhase();
+      if (newPhase === GamePhase.SCORING) {
         notifications.show({
-          title: '🏁 Game Phase Changed',
-          message: 'Two consecutive passes - entering scoring phase',
+          title: '📊 Scoring Phase',
+          message: 'Mark dead stones by clicking on them',
           color: 'yellow',
           autoClose: 5000,
         });
@@ -169,7 +205,7 @@ export function Game({
 
       forceRefresh();
     }
-  }, [gameEngine, gameState.currentPlayer, gameState.phase, forceRefresh]);
+  }, [gameEngine, gameState.currentPlayer, forceRefresh]);
 
   // Handle resign
   const handleResign = useCallback(() => {
@@ -196,7 +232,9 @@ export function Game({
 
   // Handle new game
   const handleNewGame = useCallback(() => {
-    const newEngine = createBeginnerGame();
+    const newEngine = useTestGame
+      ? createScoringTestGame()
+      : createBeginnerGame();
     setGameEngine(newEngine);
 
     notifications.show({
@@ -205,7 +243,55 @@ export function Game({
       color: 'green',
       autoClose: 3000,
     });
-  }, []);
+  }, [useTestGame]);
+
+  // Handle finalizing the game
+  const handleFinalizeGame = useCallback(() => {
+    const result = gameEngine.finalizeGame();
+
+    if (result.success) {
+      const score = gameEngine.getCurrentScore();
+      if (score) {
+        const winner = score.winner
+          ? score.winner === Player.BLACK
+            ? 'Black'
+            : 'White'
+          : 'No one (Tie)';
+        const margin = Math.abs(score.black.total - score.white.total);
+
+        notifications.show({
+          title: '🏆 Game Finished!',
+          message: `${winner} wins by ${margin} points!`,
+          color: 'green',
+          autoClose: false,
+        });
+      }
+
+      forceRefresh();
+    }
+  }, [gameEngine, forceRefresh]);
+
+  // Handle resuming play from scoring
+  const handleResumePlaying = useCallback(() => {
+    const result = gameEngine.resumePlaying();
+
+    if (result.success) {
+      notifications.show({
+        title: '🎮 Resume Playing',
+        message: 'Returned to playing phase',
+        color: 'blue',
+        autoClose: 3000,
+      });
+
+      forceRefresh();
+    }
+  }, [gameEngine, forceRefresh]);
+
+  // Get dead stones for board display
+  const deadStones =
+    gameState.phase === GamePhase.SCORING
+      ? gameEngine.getDeadStones()
+      : new Set<string>();
 
   return (
     <>
@@ -236,8 +322,58 @@ export function Game({
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
+          position: 'relative',
         }}
       >
+        {/* Test Mode Toggle - only in development */}
+        {process.env.NODE_ENV === 'development' && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              zIndex: 1000,
+              background: 'rgba(255, 255, 255, 0.9)',
+              padding: '10px',
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            }}
+          >
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={useTestGame}
+                onChange={(e) => {
+                  const isChecked = e.currentTarget.checked;
+                  setUseTestGame(isChecked);
+                  // Reset game when toggling
+                  const newEngine = isChecked
+                    ? createScoringTestGame()
+                    : createBeginnerGame();
+                  setGameEngine(newEngine);
+                }}
+              />
+              <span style={{ fontSize: '14px', fontWeight: 500 }}>
+                Scoring Test Mode
+              </span>
+            </label>
+            {useTestGame && (
+              <p
+                style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#666' }}
+              >
+                Pass twice to enter scoring phase
+              </p>
+            )}
+          </div>
+        )}
+
         <Container
           size="xl"
           style={{
@@ -327,7 +463,11 @@ export function Game({
                 height={getBoardSize()}
                 lastMove={gameState.lastMove?.position}
                 onIntersectionClick={handleIntersectionClick}
-                interactive={gameEngine.getGamePhase() === 'playing'}
+                interactive={
+                  gameState.phase === GamePhase.PLAYING ||
+                  gameState.phase === GamePhase.SCORING
+                }
+                deadStones={deadStones}
                 key={`${refreshKey}-${currentTheme}`}
               />
             </div>
@@ -345,43 +485,53 @@ export function Game({
               }}
               className="controls-sidebar"
             >
-              <GameControls
-                currentPlayer={gameState.currentPlayer}
-                gamePhase={gameState.phase}
-                capturedStones={gameEngine.getCapturedStones()}
-                onPass={handlePass}
-                onResign={handleResign}
-                onNewGame={handleNewGame}
-              />
+              {gameState.phase === GamePhase.SCORING ? (
+                <ScoringControls
+                  score={gameEngine.getCurrentScore()}
+                  onFinalize={handleFinalizeGame}
+                  onResume={handleResumePlaying}
+                />
+              ) : (
+                <GameControls
+                  currentPlayer={gameState.currentPlayer}
+                  gamePhase={gameState.phase}
+                  capturedStones={gameEngine.getCapturedStones()}
+                  onPass={handlePass}
+                  onResign={handleResign}
+                  onNewGame={handleNewGame}
+                />
+              )}
 
               {/* Compact Game Information */}
-              <Alert
-                icon={<IconInfoCircle size={16} />}
-                title="How to Play"
-                variant="light"
-                color="blue"
-                style={{
-                  background: '#e3f2fd',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Stack gap="xs">
-                  <Text size="xs" fw={500}>
-                    🎯 Click intersections to place stones
-                  </Text>
-                  <Text size="xs" fw={500}>
-                    🔄 Surround opponent stones to capture
-                  </Text>
-                  <Text size="xs" fw={500}>
-                    ⏭️ Pass when you don't want to move
-                  </Text>
-                  <Text size="xs" fw={500}>
-                    🏁 Two passes end the game
-                  </Text>
-                </Stack>
-              </Alert>
+              {gameState.phase === GamePhase.PLAYING && (
+                <Alert
+                  icon={<IconInfoCircle size={16} />}
+                  title="How to Play"
+                  variant="light"
+                  color="blue"
+                  style={{
+                    background: '#e3f2fd',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  <Stack gap="xs">
+                    <Text size="xs" fw={500}>
+                      🎯 Click intersections to place stones
+                    </Text>
+                    <Text size="xs" fw={500}>
+                      🔄 Surround opponent stones to capture
+                    </Text>
+                    <Text size="xs" fw={500}>
+                      ⏭️ Pass when you don't want to move
+                    </Text>
+                    <Text size="xs" fw={500}>
+                      🏁 Two passes end the game
+                    </Text>
+                  </Stack>
+                </Alert>
+              )}
             </div>
           </div>
         </Container>

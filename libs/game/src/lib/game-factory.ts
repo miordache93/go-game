@@ -5,7 +5,7 @@
  */
 
 import { GameEngine } from './game.js';
-import { GameSettings, BoardSize } from '@go-game/types';
+import { GameSettings, BoardSize, Player, MoveType } from '@go-game/types';
 import { DEFAULT_KOMI, TIME_CONTROLS } from '@go-game/constants';
 
 /**
@@ -102,37 +102,71 @@ export function createBeginnerGame(playerNames?: {
 }
 
 /**
- * Creates a demo game with some pre-placed stones for visual demonstration
- * TODO: Fix TypeScript issues and re-enable
+ * Creates a standard game for intermediate players
+ * - 13x13 board
+ * - Standard komi of 6.5
  */
-/*
-export function createDemoGame(): GameEngine {
-  const engine = createBeginnerGame({
-    black: 'Demo Black',
-    white: 'Demo White',
-  });
+export function createStandardGame(): GameEngine {
+  const settings: GameSettings = {
+    boardSize: BoardSize.MEDIUM,
+    komi: 6.5,
+    gameType: 'local',
+    players: {
+      black: 'Black Player',
+      white: 'White Player',
+    },
+  };
 
-  // Add some demo stones to showcase the board
-  // These represent a realistic game opening
-  const demoMoves = [
-    // Black opening moves
-    { player: Player.BLACK, position: { x: 2, y: 2 } }, // Bottom-left corner approach
-    { player: Player.WHITE, position: { x: 6, y: 2 } }, // Bottom-right corner approach
-    { player: Player.BLACK, position: { x: 2, y: 6 } }, // Top-left corner approach
-    { player: Player.WHITE, position: { x: 6, y: 6 } }, // Top-right corner approach
-    { player: Player.BLACK, position: { x: 4, y: 4 } }, // Center/tengen
-    { player: Player.WHITE, position: { x: 3, y: 3 } }, // Defensive move
-    { player: Player.BLACK, position: { x: 5, y: 5 } }, // Extension
-    { player: Player.WHITE, position: { x: 1, y: 4 } }, // Side extension
-    { player: Player.BLACK, position: { x: 7, y: 4 } }, // Opposite side
-    { player: Player.WHITE, position: { x: 4, y: 1 } }, // Bottom side
+  return new GameEngine(settings);
+}
+
+/**
+ * Creates a game that's ready for scoring phase testing
+ * - Pre-filled board with territories
+ * - Some captured stones
+ * - Ready to pass twice to enter scoring
+ */
+export function createScoringTestGame(): GameEngine {
+  const engine = createBeginnerGame();
+
+  // Create a realistic endgame position
+  // Black territory in top-left, White territory in bottom-right
+  const moves = [
+    // Black builds top-left corner
+    { player: Player.BLACK, pos: { x: 2, y: 2 } },
+    { player: Player.WHITE, pos: { x: 6, y: 6 } },
+    { player: Player.BLACK, pos: { x: 2, y: 3 } },
+    { player: Player.WHITE, pos: { x: 6, y: 5 } },
+    { player: Player.BLACK, pos: { x: 3, y: 2 } },
+    { player: Player.WHITE, pos: { x: 5, y: 6 } },
+    { player: Player.BLACK, pos: { x: 3, y: 3 } },
+    { player: Player.WHITE, pos: { x: 5, y: 5 } },
+    { player: Player.BLACK, pos: { x: 1, y: 2 } },
+    { player: Player.WHITE, pos: { x: 7, y: 6 } },
+    { player: Player.BLACK, pos: { x: 2, y: 1 } },
+    { player: Player.WHITE, pos: { x: 6, y: 7 } },
+
+    // Create some boundaries
+    { player: Player.BLACK, pos: { x: 4, y: 3 } },
+    { player: Player.WHITE, pos: { x: 4, y: 5 } },
+    { player: Player.BLACK, pos: { x: 3, y: 4 } },
+    { player: Player.WHITE, pos: { x: 5, y: 4 } },
+
+    // Add stones that could be marked as dead
+    { player: Player.WHITE, pos: { x: 1, y: 1 } }, // White stone in Black territory
+    { player: Player.BLACK, pos: { x: 7, y: 7 } }, // Black stone in White territory
+
+    // Few more moves to make it realistic
+    { player: Player.BLACK, pos: { x: 2, y: 4 } },
+    { player: Player.WHITE, pos: { x: 6, y: 4 } },
+    { player: Player.BLACK, pos: { x: 4, y: 2 } },
+    { player: Player.WHITE, pos: { x: 4, y: 6 } },
   ];
 
-  // Place the demo stones
-  demoMoves.forEach(({ player, position }) => {
-    engine.makeMove(player, MoveType.PLACE_STONE, position);
+  // Execute all moves
+  moves.forEach(({ player, pos }) => {
+    engine.makeMove(player, MoveType.PLACE_STONE, pos);
   });
 
   return engine;
 }
-*/

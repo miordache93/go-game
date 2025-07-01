@@ -19,6 +19,8 @@ interface GoBoardProps {
   lastMove?: Position;
   /** Whether the board accepts interaction */
   interactive?: boolean;
+  /** Set of dead stones during scoring phase (as "x,y" strings) */
+  deadStones?: Set<string>;
   /** Callback when an intersection is clicked */
   onIntersectionClick?: (position: Position) => void;
 }
@@ -44,6 +46,7 @@ export function GoBoard({
   height = 500,
   lastMove,
   interactive = true,
+  deadStones = new Set(),
   onIntersectionClick,
 }: GoBoardProps) {
   const [hoverPosition, setHoverPosition] = useState<Position | null>(null);
@@ -205,15 +208,27 @@ export function GoBoard({
 
       console.log('📍 Click position:', { screen: pos, board: boardPos });
 
-      if (boardPos && board[boardPos.y][boardPos.x] === null) {
-        console.log('✅ Valid click - calling handler');
-        onIntersectionClick(boardPos);
-        setHoverPosition(null);
+      if (boardPos) {
+        // In scoring phase, allow clicking on stones to mark as dead
+        const stone = board[boardPos.y][boardPos.x];
+        if (stone || (!stone && deadStones.size === 0)) {
+          console.log('✅ Valid click - calling handler');
+          onIntersectionClick(boardPos);
+          setHoverPosition(null);
+        }
       } else {
-        console.log('❌ Invalid click - position occupied or out of bounds');
+        console.log('❌ Invalid click - position out of bounds');
       }
     },
-    [interactive, onIntersectionClick, canvasToBoard, board]
+    [interactive, onIntersectionClick, canvasToBoard, board, deadStones]
+  );
+
+  // Helper to check if a stone is marked as dead
+  const isDeadStone = useCallback(
+    (x: number, y: number): boolean => {
+      return deadStones.has(`${x},${y}`);
+    },
+    [deadStones]
   );
 
   return (
@@ -325,9 +340,10 @@ export function GoBoard({
                   lastMove.y === rowIndex &&
                   lastMove.x === colIndex;
                 const stoneRadius = cellSize * 0.4; // Slightly smaller for better visibility
+                const isDead = isDeadStone(colIndex, rowIndex);
 
                 console.log(
-                  `🔹 Rendering stone at (${colIndex},${rowIndex}) -> canvas (${x},${y}) player: ${stone.player}`
+                  `🔹 Rendering stone at (${colIndex},${rowIndex}) -> canvas (${x},${y}) player: ${stone.player} dead: ${isDead}`
                 );
 
                 return (
@@ -338,7 +354,7 @@ export function GoBoard({
                       y={y + 3}
                       radius={stoneRadius}
                       fill="rgba(0,0,0,0.4)"
-                      opacity={0.7}
+                      opacity={isDead ? 0.3 : 0.7}
                     />
 
                     {/* Main Stone */}
@@ -353,6 +369,7 @@ export function GoBoard({
                       }
                       stroke={stone.player === Player.BLACK ? '#000' : '#999'}
                       strokeWidth={2}
+                      opacity={isDead ? 0.4 : 1}
                     />
 
                     {/* Stone highlight border for better visibility */}
@@ -363,11 +380,39 @@ export function GoBoard({
                       fill="transparent"
                       stroke={stone.player === Player.BLACK ? '#333' : '#ddd'}
                       strokeWidth={1}
-                      opacity={0.8}
+                      opacity={isDead ? 0.3 : 0.8}
                     />
 
+                    {/* Dead stone marker (X) */}
+                    {isDead && (
+                      <Group>
+                        <Line
+                          points={[
+                            x - stoneRadius * 0.5,
+                            y - stoneRadius * 0.5,
+                            x + stoneRadius * 0.5,
+                            y + stoneRadius * 0.5,
+                          ]}
+                          stroke="#FF0000"
+                          strokeWidth={3}
+                          opacity={0.8}
+                        />
+                        <Line
+                          points={[
+                            x - stoneRadius * 0.5,
+                            y + stoneRadius * 0.5,
+                            x + stoneRadius * 0.5,
+                            y - stoneRadius * 0.5,
+                          ]}
+                          stroke="#FF0000"
+                          strokeWidth={3}
+                          opacity={0.8}
+                        />
+                      </Group>
+                    )}
+
                     {/* Last Move Marker */}
-                    {isLastMove && (
+                    {isLastMove && !isDead && (
                       <Circle
                         x={x}
                         y={y}
@@ -381,25 +426,26 @@ export function GoBoard({
               })
             )}
 
-            {/* Hover Preview Stone */}
-            {hoverPosition && (
-              <Group>
-                <Circle
-                  x={boardToCanvas(hoverPosition).x}
-                  y={boardToCanvas(hoverPosition).y}
-                  radius={cellSize * 0.45}
-                  fill={
-                    currentPlayer === Player.BLACK
-                      ? currentTheme.blackStone
-                      : currentTheme.whiteStone
-                  }
-                  opacity={0.5}
-                  stroke={currentPlayer === Player.BLACK ? '#000' : '#ccc'}
-                  strokeWidth={2}
-                  dash={[5, 5]}
-                />
-              </Group>
-            )}
+            {/* Hover Preview Stone - only show when not in scoring phase or on empty intersection */}
+            {hoverPosition &&
+              board[hoverPosition.y][hoverPosition.x] === null && (
+                <Group>
+                  <Circle
+                    x={boardToCanvas(hoverPosition).x}
+                    y={boardToCanvas(hoverPosition).y}
+                    radius={cellSize * 0.45}
+                    fill={
+                      currentPlayer === Player.BLACK
+                        ? currentTheme.blackStone
+                        : currentTheme.whiteStone
+                    }
+                    opacity={0.5}
+                    stroke={currentPlayer === Player.BLACK ? '#000' : '#ccc'}
+                    strokeWidth={2}
+                    dash={[5, 5]}
+                  />
+                </Group>
+              )}
 
             {/* Coordinate Labels (for larger boards) */}
             {size >= 13 && (

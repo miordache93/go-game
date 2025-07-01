@@ -3,12 +3,6 @@
   "include": [],
   "references": [
     {
-      "path": "../../libs/shared/types"
-    },
-    {
-      "path": "../../libs/shared/utils"
-    },
-    {
       "path": "../../libs/game"
     },
     {

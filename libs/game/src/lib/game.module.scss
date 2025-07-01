@@ -5,3 +5,150 @@
  * .container {
  * }
 */
+
+/* Game module styles */
+
+.game {
+  /* Add custom styles here */
+}
+
+/* Scoring Controls Styles */
+.scoringControls {
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.scoringTitle {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #2d3748;
+  text-align: center;
+}
+
+.scoringInstructions {
+  background: #e3f2fd;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+
+  p {
+    margin: 0.25rem 0;
+    font-size: 0.875rem;
+    color: #1976d2;
+  }
+}
+
+.scoreDisplay {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.playerScore {
+  flex: 1;
+  background: white;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+
+  h4 {
+    margin: 0 0 0.75rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+
+.blackStone {
+  font-size: 1.5rem;
+  color: #2c2c2c;
+}
+
+.whiteStone {
+  font-size: 1.5rem;
+  color: #333;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+}
+
+.scoreDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.scoreRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+  color: #4a5568;
+
+  &.totalScore {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #e2e8f0;
+    font-weight: 600;
+    color: #2d3748;
+    font-size: 1rem;
+  }
+}
+
+.winnerDisplay {
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin: 1rem 0;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(255, 215, 0, 0.3);
+}
+
+.scoringActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.button {
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
+  color: white;
+
+  &:hover {
+    background: linear-gradient(135deg, #43a047 0%, #5cb85c 100%);
+  }
+}
+
+.secondaryButton {
+  background: linear-gradient(135deg, #2196f3 0%, #42a5f5 100%);
+  color: white;
+
+  &:hover {
+    background: linear-gradient(135deg, #1e88e5 0%, #3d9fe8 100%);
+  }
+}

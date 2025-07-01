@@ -7,6 +7,7 @@
  * - Capture detection
  * - Ko rule enforcement
  * - Game end conditions
+ * - Scoring and territory calculation
  */
 
 import {
@@ -41,14 +42,23 @@ import {
   getGroup,
 } from '@go-game/utils';
 
+import {
+  ScoringState,
+  createScoringState,
+  toggleDeadGroup,
+  calculateFinalScore,
+} from './scoring';
+
 /**
  * Main Game Engine class that manages the complete game state and enforces rules
  */
 export class GameEngine {
   private gameState: GameState;
+  private scoringState: ScoringState;
 
   constructor(settings: GameSettings) {
     this.gameState = this.createInitialGameState(settings);
+    this.scoringState = createScoringState();
   }
 
   /**
@@ -492,5 +502,124 @@ export class GameEngine {
     }
 
     this.gameState = gameState;
+  }
+
+  /**
+   * Marks a group of stones as dead or alive during scoring phase
+   * Returns true if successful
+   */
+  public markDeadStones(position: Position): boolean {
+    // Only allowed during scoring phase
+    if (this.gameState.phase !== GamePhase.SCORING) {
+      return false;
+    }
+
+    // Check if there's a stone at this position
+    const stone = this.gameState.board[position.y][position.x];
+    if (!stone) {
+      return false;
+    }
+
+    // Toggle the dead/alive status of the group
+    toggleDeadGroup(
+      this.gameState.board,
+      position,
+      this.scoringState.deadStones
+    );
+
+    return true;
+  }
+
+  /**
+   * Gets the current dead stones during scoring
+   */
+  public getDeadStones(): Set<string> {
+    return new Set(this.scoringState.deadStones);
+  }
+
+  /**
+   * Finalizes the game and calculates the score
+   * Can only be called during scoring phase
+   */
+  public finalizeGame(): MoveResult {
+    if (this.gameState.phase !== GamePhase.SCORING) {
+      return {
+        success: false,
+        error: 'Can only finalize game during scoring phase',
+      };
+    }
+
+    // Calculate final score
+    const finalScore = calculateFinalScore(
+      this.gameState.board,
+      this.gameState.capturedStones[Player.BLACK],
+      this.gameState.capturedStones[Player.WHITE],
+      this.gameState.komi,
+      this.scoringState.deadStones
+    );
+
+    // Create new game state
+    const newGameState: GameState = {
+      ...this.gameState,
+      phase: GamePhase.FINISHED,
+      score: finalScore,
+    };
+
+    // Update internal state
+    this.gameState = newGameState;
+
+    return {
+      success: true,
+      newGameState: this.getGameState(),
+    };
+  }
+
+  /**
+   * Returns to playing phase from scoring phase
+   * Used when players disagree on dead stones
+   */
+  public resumePlaying(): MoveResult {
+    if (this.gameState.phase !== GamePhase.SCORING) {
+      return {
+        success: false,
+        error: 'Can only resume from scoring phase',
+      };
+    }
+
+    // Clear scoring state
+    this.scoringState = createScoringState();
+
+    // Reset pass count to allow more moves
+    const newGameState: GameState = {
+      ...this.gameState,
+      phase: GamePhase.PLAYING,
+      passCount: 0,
+    };
+
+    // Update internal state
+    this.gameState = newGameState;
+
+    return {
+      success: true,
+      newGameState: this.getGameState(),
+    };
+  }
+
+  /**
+   * Gets the current score if game is in scoring or finished phase
+   */
+  public getCurrentScore() {
+    if (this.gameState.phase === GamePhase.SCORING) {
+      // Calculate temporary score for preview
+      return calculateFinalScore(
+        this.gameState.board,
+        this.gameState.capturedStones[Player.BLACK],
+        this.gameState.capturedStones[Player.WHITE],
+        this.gameState.komi,
+        this.scoringState.deadStones
+      );
+    }
+
+    return this.gameState.score;
   }
 }
