@@ -137,10 +137,12 @@ export const optionalAuth = async (
  * Generate JWT token
  */
 export const generateToken = (userId: string, username: string): string => {
+  const secret = process.env.JWT_SECRET || 'default-secret';
+  
   return jwt.sign(
     { userId, username },
-    process.env.JWT_SECRET || 'default-secret',
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    secret,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
   );
 };
 
@@ -148,10 +150,12 @@ export const generateToken = (userId: string, username: string): string => {
  * Generate refresh token
  */
 export const generateRefreshToken = (userId: string): string => {
+  const secret = process.env.JWT_REFRESH_SECRET || 'default-refresh-secret';
+  
   return jwt.sign(
     { userId },
-    process.env.JWT_REFRESH_SECRET || 'default-refresh-secret',
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d' }
+    secret,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d' } as any
   );
 };
 

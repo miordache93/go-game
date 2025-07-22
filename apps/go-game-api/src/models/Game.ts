@@ -3,9 +3,7 @@ import {
   GameState, 
   BoardSize, 
   Player, 
-  GamePhase,
   Position,
-  Move,
   MoveType
 } from '@go-game/types';
 

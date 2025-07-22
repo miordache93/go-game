@@ -13,6 +13,9 @@ export const connectDatabase = async (): Promise<void> => {
       autoIndex: true,
       // Automatically create indexes in development
       autoCreate: process.env.NODE_ENV === 'development',
+      // Add timeout options
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
     };
 
     // Connect to MongoDB
@@ -38,7 +41,17 @@ export const connectDatabase = async (): Promise<void> => {
 
   } catch (error) {
     console.error('❌ Failed to connect to MongoDB:', error);
-    process.exit(1);
+    console.error('\n⚠️  IMPORTANT: Make sure MongoDB is running!');
+    console.error('  You can install MongoDB with: brew install mongodb-community');
+    console.error('  Then start it with: brew services start mongodb-community\n');
+    
+    // In development, we might want to continue without DB
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('⚠️  Running in development mode without MongoDB connection');
+      console.warn('  API endpoints requiring database will not work\n');
+    } else {
+      process.exit(1);
+    }
   }
 };
 

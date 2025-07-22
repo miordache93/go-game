@@ -22,8 +22,15 @@ const app: Application = express();
  */
 async function startServer() {
   try {
-    // Connect to MongoDB
-    await connectDatabase();
+    // Try to connect to MongoDB
+    let dbConnected = false;
+    try {
+      await connectDatabase();
+      dbConnected = true;
+    } catch (dbError) {
+      console.warn('⚠️  Starting server without database connection');
+      dbConnected = false;
+    }
 
     // Middleware
     setupMiddleware(app);
@@ -41,8 +48,13 @@ async function startServer() {
 🎮 GO Game API Server
 📍 Running at: http://${config.host}:${config.port}
 🌍 Environment: ${config.nodeEnv}
-📊 Database: Connected
+📊 Database: ${dbConnected ? 'Connected' : 'Not Connected (API limited)'}
       `);
+      
+      if (!dbConnected) {
+        console.log('⚠️  Note: Database-dependent endpoints will return errors');
+        console.log('  Only /health endpoint will work properly\n');
+      }
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

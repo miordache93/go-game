@@ -43,8 +43,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   const refreshToken = generateRefreshToken(user._id.toString());
 
   // Remove password from response
-  const userResponse = user.toObject();
-  delete userResponse.password;
+  const { password: _, ...userResponse } = user.toObject();
 
   res.status(201).json({
     success: true,
@@ -91,8 +90,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const refreshToken = generateRefreshToken(user._id.toString());
 
   // Remove password from response
-  const userResponse = user.toObject();
-  delete userResponse.password;
+  const { password: _, ...userResponse } = user.toObject();
 
   res.json({
     success: true,
