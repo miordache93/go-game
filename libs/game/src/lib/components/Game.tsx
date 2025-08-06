@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import {
-  Grid,
   Container,
   Title,
   Text,
@@ -351,7 +350,7 @@ export function Game({
                 type="checkbox"
                 checked={useTestGame}
                 onChange={(e) => {
-                  const isChecked = e.currentTarget.checked;
+                  const isChecked = (e.currentTarget as any).checked;
                   setUseTestGame(isChecked);
                   // Reset game when toggling
                   const newEngine = isChecked

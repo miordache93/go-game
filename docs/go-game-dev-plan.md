@@ -1,5 +1,46 @@
 # GO Game Development Plan: Agile Roadmap
 
+**Last Updated**: August 2025
+
+## Executive Summary
+
+### 🎯 Project Status: Phase 3 - Backend Integration Active
+
+The Go Game has successfully completed its MVP phase and core multiplayer functionality. The game is fully playable both locally and online with real-time multiplayer support via PartyKit.
+
+### ✅ What's Done (Phases 1-3)
+- **Complete Go game engine** with all rules (ko, suicide prevention, captures)
+- **Full UI implementation** with 3 themes and responsive design
+- **Scoring system** with dead stone marking (Japanese rules)
+- **Real-time multiplayer** via PartyKit (WebSocket)
+- **Room-based gameplay** with spectator support
+- **Backend API** with JWT auth, user management, game endpoints
+- **State management** with Zustand (auth/UI) + TanStack Query (server state)
+- **ELO rating system** calculation in backend
+- **PartyKit-Backend integration** via webhooks
+
+### 🚧 Current Sprint Focus (Phase 4)
+1. **AI Opponent** - Single player vs computer
+2. **User profiles UI** - Display stats, history, avatars
+3. **Leaderboard** - Global rankings display
+4. **Game persistence** - Save completed games to MongoDB
+
+### 📅 Timeline Adjustment
+- **Original Plan**: 22 weeks total
+- **Current Progress**: Phases 1-3 complete (backend integration done)
+- **Revised Timeline**: 
+  - Phase 4: 2-3 weeks (AI opponent & UI polish)
+  - Phase 5: 2-3 weeks (Advanced AI & analysis)
+  - Phase 6: 2-3 weeks (Mobile PWA & monetization)
+
+### 🎯 Next Immediate Tasks
+1. ✅ Connect PartyKit games to MongoDB via webhook
+2. ✅ Implement ELO calculation system
+3. ✅ Add state management (Zustand + TanStack Query)
+4. 🚧 Build AI opponent (single player mode)
+5. 🚧 Create user profile UI components
+6. 🚧 Build leaderboard display
+
 ## 🏗️ Technical Architecture Foundation
 
 Before diving into the sprints, here's the scalable architecture that will support all future features:
@@ -8,25 +49,36 @@ Before diving into the sprints, here's the scalable architecture that will suppo
 ┌─────────────────────────────────────────────────────────────┐
 │                         Frontend                             │
 ├─────────────────────────────────────────────────────────────┤
-│  React App (PWA)                                            │
-│  ├── Game Engine (Core Logic)                               │
-│  ├── UI Components (Themeable)                              │
-│  ├── State Management (Zustand)                             │
-│  └── Socket.io Client                                       │
+│  React App                                                  │
+│  ├── Game Engine (Core Logic) ✅                           │
+│  ├── UI Components (Mantine) ✅                            │
+│  ├── State Management (Local) ✅                           │
+│  └── PartyKit Client ✅                                    │
 ├─────────────────────────────────────────────────────────────┤
-│                         Backend                              │
+│                    Multiplayer Server                        │
 ├─────────────────────────────────────────────────────────────┤
-│  Node.js + Express                                          │
-│  ├── Game Server (Socket.io)                                │
-│  ├── REST API                                               │
-│  ├── Auth Service (JWT)                                     │
-│  └── Game State Validator                                   │
+│  PartyKit (Edge-deployed) ✅                               │
+│  ├── Game Server (WebSocket) ✅                            │
+│  ├── Room Management ✅                                    │
+│  ├── Game State Validator ✅                               │
+│  └── In-memory State ✅                                    │
 ├─────────────────────────────────────────────────────────────┤
-│  MongoDB                │  Redis                             │
-│  ├── Users             │  ├── Active Games                  │
-│  ├── Game History      │  ├── Session Data                 │
-│  └── Rankings          │  └── Matchmaking Queue            │
+│                      Backend API                             │
+├─────────────────────────────────────────────────────────────┤
+│  Node.js + Express ✅                                      │
+│  ├── REST API ✅                                          │
+│  ├── Auth Service (JWT) ✅                                 │
+│  ├── User Management ✅                                    │
+│  ├── Game Management ✅                                    │
+│  └── ELO Rating System ✅                                  │
+├─────────────────────────────────────────────────────────────┤
+│  MongoDB ✅            │  Future: Redis                     │
+│  ├── Users ✅          │  ├── Leaderboard Cache ⏳         │
+│  ├── Game History ✅   │  ├── Session Cache ⏳            │
+│  └── Rankings ✅       │  └── Matchmaking Queue ⏳         │
 └─────────────────────────────────────────────────────────────┘
+
+Legend: ✅ Implemented | ⚠️ Partial | 🚧 In Progress | ⏳ Planned
 ```
 
 ## 📋 Development Phases Overview
@@ -39,143 +91,156 @@ Before diving into the sprints, here's the scalable architecture that will suppo
 
 ---
 
-## Phase 1: Foundation MVP (Weeks 1-6)
+## Phase 1: Foundation MVP (Weeks 1-6) ✅ COMPLETED
 
-### Sprint 1: Core Game Engine (Week 1-2)
+### Sprint 1: Core Game Engine (Week 1-2) ✅ COMPLETED
 
-**Technical Goals:**
-- Implement board representation and game state
-- Core GO rules engine (placement, capture, ko)
-- Themeable architecture from day one
+**Status: FULLY IMPLEMENTED**
 
-**Deliverables:**
-```javascript
-// Core abstractions
-class GameEngine {
-  - Board state management (9x9, 13x13, 19x19)
-  - Move validation
-  - Capture detection algorithm
-  - Ko rule enforcement
-  - Pass/Resign handling
-}
+**Completed Deliverables:**
+- ✅ GameEngine class with complete Go rules
+- ✅ Board state management (9x9, 13x13, 19x19)
+- ✅ Move validation with all edge cases
+- ✅ Capture detection algorithm
+- ✅ Ko rule enforcement
+- ✅ Suicide prevention
+- ✅ Pass/Resign handling
+- ✅ Theme system with 3 themes (Classic, Modern, Zen)
 
-// Theme system foundation
-const themes = {
-  classic: { board: '#DEB887', blackStone: '#000', whiteStone: '#FFF' },
-  modern: { board: '#2C3E50', blackStone: '#1A1A1A', whiteStone: '#ECF0F1' },
-  zen: { board: '#8B7355', blackStone: '#2F4F4F', whiteStone: '#F5F5DC' }
-};
-```
+**Implementation Location:**
+- `libs/game/src/lib/game-engine.ts`
+- `libs/shared/types/src/lib/types.ts`
+- `libs/shared/constants/src/lib/constants.ts`
 
-**Business Value:** Core game works locally, can demo to stakeholders
+### Sprint 2: UI & Local Play (Week 3-4) ✅ COMPLETED
 
-### Sprint 2: UI & Local Play (Week 3-4)
+**Status: FULLY IMPLEMENTED**
 
-**Technical Goals:**
-- React component architecture
-- Responsive board rendering
-- Local hot-seat multiplayer
-- Theme switching
-
-**Key Components:**
-```javascript
-<GameBoard />           // Scalable SVG/Canvas rendering
-<GameInfo />           // Captures, turn, time
-<ThemeSelector />      // 3 initial themes
-<MoveHistory />        // For replay functionality
-```
-
-**Business Requirements Met:**
-- ✅ Multiple board sizes
-- ✅ Basic theme customization
-- ✅ Local 2-player mode
+**Completed Components:**
+- ✅ `<GameBoard />` - SVG-based responsive rendering
+- ✅ `<GameInfo />` - Shows captures, turn, game status
+- ✅ `<ThemeSelector />` - 3 working themes
+- ✅ `<MoveHistory />` - Full move tracking
+- ✅ `<GameControls />` - Pass, resign, new game
+- ✅ Local hot-seat multiplayer
 - ✅ Mobile-responsive design
 
-### Sprint 3: Game Completion & Scoring (Week 5-6)
+**Implementation Location:**
+- `libs/game/src/lib/components/`
+- `apps/go-game/src/app/app.tsx`
 
-**Technical Goals:**
-- Territory marking interface
-- Scoring algorithm
-- Game end detection
-- Basic game review
+### Sprint 3: Game Completion & Scoring (Week 5-6) ✅ COMPLETED
 
-**Features:**
-- Manual dead stone marking
-- Auto-score calculation
-- Winner declaration
-- Move-by-move replay
+**Status: FULLY IMPLEMENTED**
 
-**MVP Checkpoint:** 
-- Fully playable GO game
-- Can be demoed to users
-- Ready for user testing
+**Completed Features:**
+- ✅ Territory marking interface
+- ✅ Scoring algorithm (Japanese rules)
+- ✅ Game end detection
+- ✅ Manual dead stone marking
+- ✅ Auto-score calculation
+- ✅ Winner declaration
+- ✅ Scoring phase UI with controls
+
+**Implementation Location:**
+- `libs/game/src/lib/scoring.ts`
+- `libs/game/src/lib/components/ScoringControls.tsx`
 
 ---
 
-## Phase 2: Multiplayer Core (Weeks 7-10)
+## Phase 2: Multiplayer Core (Weeks 7-10) ✅ COMPLETED (Modified)
 
-### Sprint 4: Backend Foundation (Week 7-8)
+### Sprint 4: Backend Foundation (Week 7-8) ⚠️ PARTIALLY COMPLETED
 
-**Technical Implementation:**
-```javascript
-// Server architecture
-- Express + Socket.io server
-- MongoDB schemas (User, Game, Move)
-- Redis for real-time game state
-- JWT authentication
-- Basic user registration/login
+**Status: MODIFIED IMPLEMENTATION**
+- Chose PartyKit over Socket.io for better edge deployment
+- Backend API partially implemented for future persistence
+
+**Completed:**
+- ✅ JWT authentication system
+- ✅ User registration/login endpoints
+- ✅ MongoDB schemas (User, Game)
+- ✅ Express server setup
+- ✅ Error handling middleware
+- ✅ Environment configuration
+
+**API Endpoints Implemented:**
+```
+POST   /api/auth/register    ✅
+POST   /api/auth/login       ✅
+GET    /api/user/profile     ✅
+POST   /api/game/create      🚧 (Schema ready, not integrated)
+GET    /api/game/:id         🚧 (Schema ready, not integrated)
+POST   /api/game/:id/move    ❌ (Using PartyKit instead)
 ```
 
-**API Endpoints:**
-```
-POST   /api/auth/register
-POST   /api/auth/login
-GET    /api/user/profile
-POST   /api/game/create
-GET    /api/game/:id
-POST   /api/game/:id/move
-```
+**Implementation Location:**
+- `apps/go-game-api/`
+- MongoDB integration ready but optional for multiplayer
 
-### Sprint 5: Real-time Multiplayer (Week 9-10)
+### Sprint 5: Real-time Multiplayer (Week 9-10) ✅ COMPLETED (PartyKit)
 
-**Socket.io Events:**
-```javascript
+**Status: FULLY IMPLEMENTED WITH PARTYKIT**
+
+**Implemented Architecture Change:**
+- ✅ PartyKit instead of Socket.io (better performance, edge deployment)
+- ✅ WebSocket protocol with typed messages
+- ✅ Server-authoritative game state
+
+**PartyKit Events Implemented:**
+```typescript
 // Client -> Server
-socket.emit('create-game', { boardSize, timeSettings });
-socket.emit('join-game', gameId);
-socket.emit('make-move', { gameId, position });
-socket.emit('pass', gameId);
-socket.emit('resign', gameId);
+- JOIN_ROOM         ✅
+- MAKE_MOVE        ✅
+- PASS             ✅
+- RESIGN           ✅
+- MARK_DEAD        ✅
+- FINALIZE_SCORE   ✅
 
 // Server -> Client
-socket.on('game-created', gameData);
-socket.on('opponent-joined', opponentData);
-socket.on('move-made', moveData);
-socket.on('game-ended', result);
+- ROOM_STATE       ✅
+- GAME_UPDATE      ✅
+- PLAYER_JOINED    ✅
+- PLAYER_LEFT      ✅
+- ERROR            ✅
 ```
 
 **Features Delivered:**
-- Create/join game rooms
-- Real-time move synchronization
-- Reconnection handling
-- Basic matchmaking (quick match)
+- ✅ Create/join game rooms
+- ✅ Real-time move synchronization
+- ✅ Server-side move validation
+- ✅ Player role assignment (Black/White/Spectator)
+- ✅ Connection status handling
+- ✅ URL-based room joining
+- ✅ Room ID sharing
+
+**Implementation Location:**
+- `apps/go-game-partykit/src/main.ts`
+- `libs/game/src/lib/services/partykit-client.ts`
+- `libs/shared/partykit-protocol/`
 
 ---
 
-## Phase 3: Polish & Mobile (Weeks 11-14)
+## Phase 3: Backend Integration & State Management ✅ COMPLETED
 
-### Sprint 6: Enhanced UX & Rankings (Week 11-12)
+### Sprint 6: Backend Integration (Week 11-12) ✅ COMPLETED
 
-**User Features:**
-- User profiles with avatars
-- Win/loss statistics
-- ELO rating system
-- Game history
-- Rank badges (30k-9d)
+**Status: FULLY IMPLEMENTED**
 
-**Technical Additions:**
+**Completed Features:**
+- ✅ Backend API with Express + MongoDB
+- ✅ JWT authentication system
+- ✅ User registration/login endpoints
+- ✅ Game CRUD operations
+- ✅ ELO rating calculation (K-factor: 32)
+- ✅ PartyKit webhook integration
+- ✅ Zustand for auth/UI state
+- ✅ TanStack Query for server state
+- ✅ API client service
+
+**Technical Requirements:**
 ```javascript
-// Ranking algorithm
+// Needs implementation
 class RankingSystem {
   calculateELO(winner, loser);
   determineRank(elo); // 30k to 9d
@@ -183,86 +248,142 @@ class RankingSystem {
 }
 ```
 
-### Sprint 7: Mobile Optimization & PWA (Week 13-14)
+**Prerequisites:**
+- Need to complete MongoDB game persistence
+- Integrate PartyKit games with backend API
+- User session management across multiplayer
 
-**Capacitor Integration:**
-- PWA manifest and service workers
-- Offline game storage
-- Haptic feedback for moves
-- Push notifications setup
-- App store preparation
+### Sprint 8: UI Components & Leaderboard (Week 15) ⏳ NEXT
+
+**Status: NOT STARTED**
+
+**Planned Features:**
+- ⏳ PWA manifest and service workers
+- ⏳ Offline game storage
+- ⏳ Haptic feedback for moves
+- ⏳ Push notifications
+- ⏳ App store preparation
 
 **Mobile-Specific Features:**
-- Touch-optimized stone placement
-- Pinch-to-zoom board
-- Portrait/landscape support
-- Native share functionality
+- ⏳ Touch-optimized stone placement
+- ⏳ Pinch-to-zoom board
+- ⏳ Portrait/landscape support
+- ⏳ Native share functionality
+
+**Current Mobile Support:**
+- ✅ Responsive design works on mobile browsers
+- ✅ Touch events for stone placement
+- ⚠️ Not optimized for mobile performance
 
 ---
 
-## Phase 4: Advanced Features (Weeks 15-18)
+## Phase 4: Advanced Features (Weeks 15-18) ⏳ FUTURE
 
-### Sprint 8: AI Integration (Week 15-16)
+## Phase 4: AI Opponent & UI Polish 🚧 CURRENT SPRINT
 
-**AI Options (Progressive Enhancement):**
+### Sprint 7: AI Opponent Implementation (Week 13-14) 🚧 IN PROGRESS
+
+**Status: PLANNING**
+
+**AI Implementation Strategy:**
 ```javascript
-// Start simple
-class BasicAI {
-  - Random legal moves (beginner)
-  - Simple pattern matching (intermediate)
+// Step 1: Basic AI (Week 13)
+class BasicGoAI {
+  - 🚧 Random legal moves (beginner - 30k)
+  - 🚧 Capture-focused play (25k-20k)
+  - 🚧 Basic liberty counting (20k-15k)
+  - 🚧 Simple territory estimation
 }
 
-// Later: Integrate KataGo
-class AdvancedAI {
-  - KataGo web assembly integration
-  - Difficulty adjustment
-  - Move suggestions
+// Step 2: Intermediate AI (Week 14)
+class IntermediateGoAI {
+  - ⏳ Pattern matching (common joseki)
+  - ⏳ Influence maps
+  - ⏳ Life/death detection
+  - ⏳ Opening book (15k-10k)
+}
+
+// Step 3: Advanced AI (Future)
+class AdvancedGoAI {
+  - ⏳ Monte Carlo Tree Search (MCTS)
+  - ⏳ Neural network evaluation
+  - ⏳ KataGo WASM integration (5k-1d)
+  - ⏳ Teaching mode with explanations
 }
 ```
 
-### Sprint 9: Enhanced Game Analysis (Week 17-18)
+**Technical Approach:**
+- Web Worker for AI computation (non-blocking)
+- Difficulty levels: Beginner (30k), Easy (20k), Medium (10k), Hard (5k)
+- Move time limit: 1-3 seconds per move
+- Integration with existing game engine
 
-**Analysis Features:**
-- Move strength indicators
-- Variation exploration
-- Mistake detection
-- Teaching mode
-- SGF import/export
+**Technical Considerations:**
+- Could use web workers for AI computation
+- Consider server-side AI for better performance
+- Start with simple heuristics before KataGo
+
+### Sprint 9: Enhanced Game Analysis (Week 17-18) ⏳ PENDING
+
+**Status: NOT STARTED**
+
+**Planned Analysis Features:**
+- ⏳ Move strength indicators
+- ⏳ Variation exploration
+- ⏳ Mistake detection
+- ⏳ Teaching mode
+- ⏳ SGF import/export
+- ⏳ Game review tools
+- ⏳ Position evaluation
+
+**Prerequisites:**
+- AI engine for move evaluation
+- Move tree data structure
+- SGF parser implementation
 
 ---
 
-## Phase 5: Monetization & Scale (Weeks 19-22)
+## Phase 5: Monetization & Scale (Weeks 19-22) ⏳ FUTURE
 
-### Sprint 10: Monetization Features (Week 19-20)
+### Sprint 10: Monetization Features (Week 19-20) ⏳ PENDING
 
-**Revenue Streams:**
+**Status: NOT STARTED**
+
+**Planned Revenue Model:**
 ```javascript
 // Freemium model
 const features = {
   free: {
-    boardSizes: [9, 13, 19],
-    themes: ['classic'],
-    aiGames: 5/day,
-    analysis: 'basic'
+    boardSizes: [9, 13, 19],      ✅ (Already free)
+    themes: ['classic'],          ✅ (All themes free currently)
+    aiGames: 5/day,              ⏳
+    analysis: 'basic',            ⏳
+    multiplayer: 'unlimited'      ✅ (Currently free)
   },
   premium: {
-    themes: ['all'],
-    aiGames: 'unlimited',
-    analysis: 'advanced',
-    tournaments: true,
-    coaching: true
+    themes: ['premium themes'],   ⏳
+    aiGames: 'unlimited',        ⏳
+    analysis: 'advanced',         ⏳
+    tournaments: true,            ⏳
+    coaching: true,              ⏳
+    badges: 'custom',            ⏳
+    priority_matchmaking: true    ⏳
   }
 };
 ```
 
-### Sprint 11: Admin & Analytics (Week 21-22)
+### Sprint 11: Admin & Analytics (Week 21-22) ⏳ PENDING
 
-**Admin Dashboard:**
-- User management
-- Game monitoring
-- Revenue analytics
-- AI performance tuning
-- Content management
+**Status: NOT STARTED**
+
+**Planned Admin Features:**
+- ⏳ User management dashboard
+- ⏳ Game monitoring and statistics
+- ⏳ Revenue analytics
+- ⏳ AI performance tuning
+- ⏳ Content management system
+- ⏳ Tournament management
+- ⏳ Moderation tools
 
 ---
 
@@ -391,51 +512,76 @@ const resources = {
 
 ## 📚 Technical Stack Details
 
-### Frontend
+### Current Technical Stack (Implemented)
+
+#### Frontend ✅
 ```json
 {
   "core": {
     "react": "^18.2.0",
-    "typescript": "^5.0.0",
-    "vite": "^4.0.0"
+    "typescript": "^5.3.3",
+    "rspack": "^1.0.0-beta.4"
   },
-  "state": {
-    "zustand": "^4.0.0"
+  "ui": {
+    "@mantine/core": "^7.7.1",
+    "@mantine/hooks": "^7.7.1"
   },
   "styling": {
-    "tailwindcss": "^3.0.0",
-    "framer-motion": "^10.0.0"
+    "scss": "modules",
+    "mantine": "components"
   },
-  "gaming": {
-    "socket.io-client": "^4.0.0",
-    "konva": "^9.0.0"
+  "multiplayer": {
+    "partysocket": "^1.0.1"
   },
-  "mobile": {
-    "@capacitor/core": "^5.0.0",
-    "@capacitor/haptics": "^5.0.0"
+  "monorepo": {
+    "nx": "^19.3.0"
   }
 }
 ```
 
-### Backend
+#### Multiplayer Server (PartyKit) ✅
+```json
+{
+  "runtime": "partykit",
+  "deployment": "cloudflare-edge",
+  "protocol": "websocket",
+  "state": "in-memory"
+}
+```
+
+#### Backend API ⚠️
 ```json
 {
   "server": {
     "express": "^4.18.0",
-    "socket.io": "^4.0.0",
-    "cors": "^2.8.0"
+    "cors": "^2.8.5"
   },
   "database": {
-    "mongoose": "^7.0.0",
-    "redis": "^4.0.0"
+    "mongoose": "^8.2.0"
   },
   "auth": {
-    "jsonwebtoken": "^9.0.0",
-    "bcrypt": "^5.0.0"
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3"
+  }
+}
+```
+
+### Planned Additions ⏳
+```json
+{
+  "ai": {
+    "katago": "wasm-version",
+    "tensorflow.js": "for-basic-ai"
   },
-  "monitoring": {
-    "winston": "^3.0.0",
-    "morgan": "^1.10.0"
+  "mobile": {
+    "@capacitor/core": "pwa-support"
+  },
+  "analytics": {
+    "posthog": "user-analytics",
+    "sentry": "error-tracking"
+  },
+  "cache": {
+    "redis": "leaderboard-cache"
   }
 }
 ```

@@ -9,6 +9,9 @@
       "path": "../shared/constants"
     },
     {
+      "path": "../shared/partykit-protocol"
+    },
+    {
       "path": "../shared/types"
     },
     {

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/partykit@0.0.115/schema.json",
+  "name": "go-game-server",
+  "main": "src/main.ts",
+  "compatibilityDate": "2024-01-01"
+}

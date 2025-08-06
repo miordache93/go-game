@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "files": [],
+  "include": [],
+  "references": [
+    {
+      "path": "../../libs/shared/partykit-protocol"
+    },
+    {
+      "path": "../../libs/shared/types"
+    },
+    {
+      "path": "../../libs/shared"
+    },
+    {
+      "path": "../../libs/game"
+    },
+    {
+      "path": "./tsconfig.app.json"
+    }
+  ]
+}

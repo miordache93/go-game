@@ -13,6 +13,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
 // Import routes
 import authRoutes from './routes/authRoutes';
+import gameRoutes from './routes/gameRoutes';
 
 // Create Express app
 const app: Application = express();
@@ -122,9 +123,9 @@ function setupRoutes(app: Application) {
 
   // API routes
   app.use('/api/auth', authRoutes);
+  app.use('/api/game', gameRoutes);
   
   // Future routes will be added here:
-  // app.use('/api/games', gameRoutes);
   // app.use('/api/users', userRoutes);
   // app.use('/api/matchmaking', matchmakingRoutes);
 }

@@ -1,10 +1,12 @@
 {
-  "extends": "../tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "out-tsc/@go-game/go-game-api-e2e",
     "esModuleInterop": true,
     "noUnusedLocals": false,
-    "noImplicitAny": false
+    "noImplicitAny": false,
+    "declaration": true,
+    "composite": true
   },
   "include": ["jest.config.ts", "src/**/*.ts"],
   "references": []

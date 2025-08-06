@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Game PartyKit Test Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(19, 30px);
+            grid-template-rows: repeat(19, 30px);
+            gap: 0;
+            background-color: #DEB887;
+            padding: 10px;
+            border: 2px solid #8B4513;
+        }
+        .intersection {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #000;
+            cursor: pointer;
+            position: relative;
+        }
+        .stone {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            position: absolute;
+            top: 2px;
+            left: 2px;
+        }
+        .black { background-color: #000; }
+        .white { background-color: #fff; border: 1px solid #000; }
+        .controls {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            cursor: pointer;
+        }
+        #status {
+            background: #333;
+            color: #fff;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        #messages {
+            height: 200px;
+            overflow-y: auto;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            background: #fff;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Go Game PartyKit Test Client</h1>
+    
+    <div class="container">
+        <div>
+            <div id="board" class="board"></div>
+            <div id="status">Disconnected</div>
+        </div>
+        
+        <div class="controls">
+            <h3>Connection</h3>
+            <input type="text" id="roomId" placeholder="Room ID" value="test-room">
+            <input type="text" id="playerName" placeholder="Player Name" value="Player 1">
+            <button onclick="connect()">Connect</button>
+            <button onclick="disconnect()">Disconnect</button>
+            
+            <h3>Game Actions</h3>
+            <button onclick="pass()">Pass</button>
+            <button onclick="resign()">Resign</button>
+            
+            <h3>Messages</h3>
+            <div id="messages"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let gameState = null;
+        let myRole = null;
+        
+        function createBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            
+            for (let y = 0; y < 19; y++) {
+                for (let x = 0; x < 19; x++) {
+                    const intersection = document.createElement('div');
+                    intersection.className = 'intersection';
+                    intersection.dataset.x = x;
+                    intersection.dataset.y = y;
+                    intersection.onclick = () => makeMove(x, y);
+                    board.appendChild(intersection);
+                }
+            }
+        }
+        
+        function updateBoard() {
+            if (!gameState) return;
+            
+            const intersections = document.querySelectorAll('.intersection');
+            intersections.forEach(intersection => {
+                const x = parseInt(intersection.dataset.x);
+                const y = parseInt(intersection.dataset.y);
+                const stone = gameState.board[y][x];
+                
+                intersection.innerHTML = '';
+                if (stone) {
+                    const stoneDiv = document.createElement('div');
+                    stoneDiv.className = `stone ${stone.player === 'BLACK' ? 'black' : 'white'}`;
+                    intersection.appendChild(stoneDiv);
+                }
+            });
+        }
+        
+        function connect() {
+            const roomId = document.getElementById('roomId').value;
+            const playerName = document.getElementById('playerName').value;
+            
+            // Connect to local PartyKit server
+            ws = new WebSocket(`ws://localhost:1999/parties/go-game-server/${roomId}`);
+            
+            ws.onopen = () => {
+                addMessage('Connected to server');
+                updateStatus('Connected - Joining...');
+                
+                // Send join message
+                ws.send(JSON.stringify({
+                    type: 'join',
+                    timestamp: Date.now(),
+                    playerInfo: {
+                        id: Math.random().toString(36).substr(2, 9),
+                        name: playerName
+                    }
+                }));
+            };
+            
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                console.log('Received:', msg);
+                
+                switch (msg.type) {
+                    case 'role_assigned':
+                        myRole = msg.role;
+                        addMessage(`Assigned role: ${msg.role}`);
+                        updateStatus(`Connected as ${msg.role}`);
+                        break;
+                        
+                    case 'game_state_update':
+                        gameState = msg.gameState;
+                        updateBoard();
+                        updateStatus(`${gameState.currentPlayer}'s turn - Phase: ${gameState.phase}`);
+                        break;
+                        
+                    case 'move_made':
+                        gameState = msg.gameState;
+                        updateBoard();
+                        addMessage(`Move made at ${msg.move.position.x},${msg.move.position.y}`);
+                        updateStatus(`${gameState.currentPlayer}'s turn`);
+                        break;
+                        
+                    case 'invalid_move':
+                        addMessage(`Invalid move: ${msg.reason}`);
+                        break;
+                        
+                    case 'player_joined':
+                        addMessage(`${msg.player.name} joined as ${msg.player.role}`);
+                        break;
+                        
+                    case 'game_started':
+                        addMessage('Game started!');
+                        gameState = msg.gameState;
+                        updateBoard();
+                        break;
+                        
+                    case 'error':
+                        addMessage(`Error: ${msg.error}`);
+                        break;
+                        
+                    default:
+                        addMessage(`${msg.type}: ${JSON.stringify(msg)}`);
+                }
+            };
+            
+            ws.onclose = () => {
+                addMessage('Disconnected from server');
+                updateStatus('Disconnected');
+                ws = null;
+            };
+            
+            ws.onerror = (error) => {
+                addMessage(`WebSocket error: ${error}`);
+                console.error('WebSocket error:', error);
+            };
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close();
+            }
+        }
+        
+        function makeMove(x, y) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage('Not connected');
+                return;
+            }
+            
+            ws.send(JSON.stringify({
+                type: 'make_move',
+                timestamp: Date.now(),
+                position: { x, y }
+            }));
+        }
+        
+        function pass() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage('Not connected');
+                return;
+            }
+            
+            ws.send(JSON.stringify({
+                type: 'pass',
+                timestamp: Date.now()
+            }));
+        }
+        
+        function resign() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage('Not connected');
+                return;
+            }
+            
+            ws.send(JSON.stringify({
+                type: 'resign',
+                timestamp: Date.now()
+            }));
+        }
+        
+        function updateStatus(text) {
+            document.getElementById('status').textContent = text;
+        }
+        
+        function addMessage(text) {
+            const messages = document.getElementById('messages');
+            const message = document.createElement('div');
+            message.className = 'message';
+            message.textContent = `${new Date().toLocaleTimeString()}: ${text}`;
+            messages.appendChild(message);
+            messages.scrollTop = messages.scrollHeight;
+        }
+        
+        // Initialize board
+        createBoard();
+    </script>
+</body>
+</html>

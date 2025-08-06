@@ -1,6 +1,5 @@
 import { Schema, model, Document, Types } from 'mongoose';
 import { 
-  GameState, 
   BoardSize, 
   Player, 
   Position,
@@ -11,24 +10,41 @@ import {
  * Game document interface
  */
 export interface IGame extends Document {
-  blackPlayer: Types.ObjectId;
-  whitePlayer: Types.ObjectId;
+  roomId?: string;
+  players: {
+    black: Types.ObjectId;
+    white: Types.ObjectId;
+  };
+  blackPlayer?: Types.ObjectId;
+  whitePlayer?: Types.ObjectId;
   boardSize: BoardSize;
-  komi: number;
-  gameState: GameState;
+  komi?: number;
+  gameState: any;
   moves: IMove[];
-  status: 'waiting' | 'active' | 'finished';
+  status: 'pending' | 'active' | 'completed' | 'abandoned' | 'waiting' | 'finished';
+  currentTurn?: 'black' | 'white';
+  lastMove?: any;
+  result?: {
+    winner?: string;
+    reason?: string;
+    scores?: {
+      black: number;
+      white: number;
+    };
+  };
   winner?: Player | 'draw';
   resultReason?: 'completion' | 'resignation' | 'timeout' | 'agreement';
-  isPublic: boolean;
+  isPublic?: boolean;
+  isRanked?: boolean;
   roomCode?: string;
-  spectators: Types.ObjectId[];
+  spectators?: Types.ObjectId[];
+  timeLimit?: number;
   timeSettings?: {
     mainTime: number;
     byoyomi: number;
     periods: number;
   };
-  playerTimes: {
+  playerTimes?: {
     black: {
       mainTimeRemaining: number;
       periodsRemaining: number;
@@ -40,9 +56,10 @@ export interface IGame extends Document {
       inByoyomi: boolean;
     };
   };
-  chat: IChat[];
+  chat?: IChat[];
   createdAt: Date;
   updatedAt: Date;
+  completedAt?: Date;
   startedAt?: Date;
   finishedAt?: Date;
 }
@@ -138,15 +155,30 @@ const ChatSchema = new Schema<IChat>(
  */
 const GameSchema = new Schema<IGame>(
   {
+    roomId: {
+      type: String,
+      sparse: true,
+      index: true,
+    },
+    players: {
+      black: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+      },
+      white: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+      },
+    },
     blackPlayer: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
     },
     whitePlayer: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      default: null,
     },
     boardSize: {
       type: Number,
@@ -169,8 +201,24 @@ const GameSchema = new Schema<IGame>(
     status: {
       type: String,
       required: true,
-      enum: ['waiting', 'active', 'finished'],
-      default: 'waiting',
+      enum: ['pending', 'active', 'completed', 'abandoned', 'waiting', 'finished'],
+      default: 'pending',
+    },
+    currentTurn: {
+      type: String,
+      enum: ['black', 'white'],
+      default: 'black',
+    },
+    lastMove: {
+      type: Schema.Types.Mixed,
+    },
+    result: {
+      winner: { type: String },
+      reason: { type: String },
+      scores: {
+        black: { type: Number },
+        white: { type: Number },
+      },
     },
     winner: {
       type: String,
@@ -183,6 +231,14 @@ const GameSchema = new Schema<IGame>(
     isPublic: {
       type: Boolean,
       default: true,
+    },
+    isRanked: {
+      type: Boolean,
+      default: false,
+    },
+    timeLimit: {
+      type: Number,
+      default: null,
     },
     roomCode: {
       type: String,
@@ -213,6 +269,9 @@ const GameSchema = new Schema<IGame>(
     chat: {
       type: [ChatSchema],
       default: [],
+    },
+    completedAt: {
+      type: Date,
     },
     startedAt: {
       type: Date,
@@ -272,4 +331,6 @@ GameSchema.methods.getPlayerColor = function(userId: string): Player | null {
 };
 
 // Create and export the model
-export const Game = model<IGame>('Game', GameSchema);
+const Game = model<IGame>('Game', GameSchema);
+export default Game;
+export { Game };

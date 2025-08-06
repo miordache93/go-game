@@ -2,9 +2,17 @@
 export * from './lib/game';
 export * from './lib/game-factory';
 export * from './lib/scoring';
+export { GameEngine } from './lib/game';
 
-// React Component exports
-export { GoBoard } from './lib/components/GoBoard';
-export { GameControls } from './lib/components/GameControls';
+// Component exports
 export { Game } from './lib/components/Game';
-export { ScoringControls } from './lib/components/ScoringControls';
+export { MultiplayerGame } from './lib/components/MultiplayerGame';
+
+// Service exports
+export { apiClient, default as ApiClient } from './lib/services/api-client';
+
+// Store exports
+export * from './lib/stores';
+
+// Hook exports
+export * from './lib/hooks';

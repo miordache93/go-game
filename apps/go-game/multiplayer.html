@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Go Game - Multiplayer Test</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module">
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+    import { MultiplayerApp } from './src/app/multiplayer-app.tsx';
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(MultiplayerApp));
+  </script>
+</body>
+</html>

@@ -16,12 +16,14 @@ interface ScoringControlsProps {
   score: GameScore | null;
   onFinalize: () => void;
   onResume: () => void;
+  disabled?: boolean;
 }
 
 export const ScoringControls: React.FC<ScoringControlsProps> = ({
   score,
   onFinalize,
   onResume,
+  disabled = false,
 }) => {
   if (!score) return null;
 
@@ -89,6 +91,7 @@ export const ScoringControls: React.FC<ScoringControlsProps> = ({
         <button
           className={`${styles.button} ${styles.primaryButton}`}
           onClick={onFinalize}
+          disabled={disabled}
         >
           Accept & Finish Game
         </button>
@@ -96,6 +99,7 @@ export const ScoringControls: React.FC<ScoringControlsProps> = ({
         <button
           className={`${styles.button} ${styles.secondaryButton}`}
           onClick={onResume}
+          disabled={disabled}
         >
           Resume Playing
         </button>

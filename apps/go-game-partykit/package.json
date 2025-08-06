@@ -1,0 +1,77 @@
+{
+  "name": "@go-game/go-game-partykit",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "partykit dev",
+    "deploy": "partykit deploy",
+    "preview": "partykit dev --preview"
+  },
+  "dependencies": {
+    "@go-game/game": "*",
+    "@go-game/shared": "*",
+    "@go-game/types": "*",
+    "partykit": "^0.0.115"
+  },
+  "nx": {
+    "targets": {
+      "build": {
+        "executor": "@nx/esbuild:esbuild",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "defaultConfiguration": "production",
+        "options": {
+          "platform": "node",
+          "outputPath": "apps/go-game-partykit/dist",
+          "format": [
+            "cjs"
+          ],
+          "bundle": false,
+          "main": "apps/go-game-partykit/src/main.ts",
+          "tsConfig": "apps/go-game-partykit/tsconfig.app.json",
+          "assets": [
+            "apps/go-game-partykit/src/assets"
+          ],
+          "esbuildOptions": {
+            "sourcemap": true,
+            "outExtension": {
+              ".js": ".js"
+            }
+          }
+        },
+        "configurations": {
+          "development": {},
+          "production": {
+            "esbuildOptions": {
+              "sourcemap": false,
+              "outExtension": {
+                ".js": ".js"
+              }
+            }
+          }
+        }
+      },
+      "serve": {
+        "continuous": true,
+        "executor": "@nx/js:node",
+        "defaultConfiguration": "development",
+        "dependsOn": [
+          "build"
+        ],
+        "options": {
+          "buildTarget": "@go-game/go-game-partykit:build",
+          "runBuildTargetDependencies": false
+        },
+        "configurations": {
+          "development": {
+            "buildTarget": "@go-game/go-game-partykit:build:development"
+          },
+          "production": {
+            "buildTarget": "@go-game/go-game-partykit:build:production"
+          }
+        }
+      }
+    }
+  }
+}

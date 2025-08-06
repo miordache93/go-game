@@ -29,6 +29,15 @@
     },
     {
       "path": "./libs/ui"
+    },
+    {
+      "path": "./apps/go-game-partykit"
+    },
+    {
+      "path": "./libs/shared/partykit-protocol"
+    },
+    {
+      "path": "./apps/go-game-api-e2e"
     }
   ]
 }

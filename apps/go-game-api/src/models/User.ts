@@ -9,18 +9,21 @@ export interface IUser extends Document {
   username: string;
   email: string;
   password: string;
+  partykitId?: string;
+  elo?: number;
   profile: {
     avatar?: string;
     bio?: string;
     country?: string;
   };
-  stats: {
+  stats?: {
     gamesPlayed: number;
-    gamesWon: number;
-    gamesLost: number;
-    gamesDrawn: number;
-    eloRating: number;
-    rank: string;
+    wins: number;
+    losses: number;
+    draws: number;
+    winStreak?: number;
+    bestWinStreak?: number;
+    lastGameAt?: Date;
   };
   isActive: boolean;
   lastLogin?: Date;
@@ -60,6 +63,17 @@ const UserSchema = new Schema<IUser>(
       minlength: [6, 'Password must be at least 6 characters'],
       select: false, // Don't include password by default in queries
     },
+    partykitId: {
+      type: String,
+      sparse: true,
+      unique: true,
+      default: null,
+    },
+    elo: {
+      type: Number,
+      default: 1500,
+      min: 0,
+    },
     profile: {
       avatar: {
         type: String,
@@ -81,37 +95,34 @@ const UserSchema = new Schema<IUser>(
         default: 0,
         min: 0,
       },
-      gamesWon: {
+      wins: {
         type: Number,
         default: 0,
         min: 0,
       },
-      gamesLost: {
+      losses: {
         type: Number,
         default: 0,
         min: 0,
       },
-      gamesDrawn: {
+      draws: {
         type: Number,
         default: 0,
         min: 0,
       },
-      eloRating: {
+      winStreak: {
         type: Number,
-        default: 1500,
+        default: 0,
         min: 0,
       },
-      rank: {
-        type: String,
-        default: '30k',
-        enum: [
-          // Kyu ranks (beginner to intermediate)
-          '30k', '29k', '28k', '27k', '26k', '25k', '24k', '23k', '22k', '21k',
-          '20k', '19k', '18k', '17k', '16k', '15k', '14k', '13k', '12k', '11k',
-          '10k', '9k', '8k', '7k', '6k', '5k', '4k', '3k', '2k', '1k',
-          // Dan ranks (advanced)
-          '1d', '2d', '3d', '4d', '5d', '6d', '7d', '8d', '9d',
-        ],
+      bestWinStreak: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      lastGameAt: {
+        type: Date,
+        default: null,
       },
     },
     isActive: {
@@ -131,8 +142,9 @@ const UserSchema = new Schema<IUser>(
 // Indexes for better query performance
 UserSchema.index({ username: 1 });
 UserSchema.index({ email: 1 });
-UserSchema.index({ 'stats.eloRating': -1 });
+UserSchema.index({ elo: -1 });
 UserSchema.index({ createdAt: -1 });
+UserSchema.index({ partykitId: 1 });
 
 /**
  * Hash password before saving
@@ -168,44 +180,40 @@ UserSchema.methods.comparePassword = async function (candidatePassword: string):
  * Update user statistics after a game
  */
 UserSchema.methods.updateStats = async function (won: boolean, drawn: boolean): Promise<void> {
+  if (!this.stats) {
+    this.stats = {
+      gamesPlayed: 0,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      winStreak: 0,
+      bestWinStreak: 0,
+      lastGameAt: new Date()
+    };
+  }
+  
   this.stats.gamesPlayed += 1;
   
   if (drawn) {
-    this.stats.gamesDrawn += 1;
+    this.stats.draws += 1;
+    this.stats.winStreak = 0;
   } else if (won) {
-    this.stats.gamesWon += 1;
+    this.stats.wins += 1;
+    this.stats.winStreak = (this.stats.winStreak || 0) + 1;
+    if (this.stats.winStreak > (this.stats.bestWinStreak || 0)) {
+      this.stats.bestWinStreak = this.stats.winStreak;
+    }
   } else {
-    this.stats.gamesLost += 1;
+    this.stats.losses += 1;
+    this.stats.winStreak = 0;
   }
   
-  // Update rank based on ELO rating
-  this.stats.rank = calculateRank(this.stats.eloRating);
+  this.stats.lastGameAt = new Date();
   
   await this.save();
 };
 
-/**
- * Calculate rank based on ELO rating
- */
-function calculateRank(elo: number): string {
-  // Simple rank calculation based on ELO
-  if (elo < 800) return '30k';
-  if (elo < 900) return '25k';
-  if (elo < 1000) return '20k';
-  if (elo < 1100) return '15k';
-  if (elo < 1200) return '10k';
-  if (elo < 1300) return '5k';
-  if (elo < 1400) return '1k';
-  if (elo < 1600) return '1d';
-  if (elo < 1800) return '2d';
-  if (elo < 2000) return '3d';
-  if (elo < 2200) return '4d';
-  if (elo < 2400) return '5d';
-  if (elo < 2600) return '6d';
-  if (elo < 2800) return '7d';
-  if (elo < 3000) return '8d';
-  return '9d';
-}
-
 // Create and export the model
-export const User = model<IUser>('User', UserSchema);
+const User = model<IUser>('User', UserSchema);
+export default User;
+export { User };
