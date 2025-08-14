@@ -71,6 +71,39 @@
             "buildTarget": "@go-game/go-game-partykit:build:production"
           }
         }
+      },
+      "vitest": {
+        "executor": "@nx/vite:test",
+        "outputs": [
+          "coverage/apps/go-game-partykit"
+        ],
+        "options": {
+          "configFile": "apps/go-game-partykit/vitest.config.ts",
+          "passWithNoTests": true
+        }
+      },
+      "vitest:run": {
+        "executor": "@nx/vite:test",
+        "outputs": [
+          "coverage/apps/go-game-partykit"
+        ],
+        "options": {
+          "configFile": "apps/go-game-partykit/vitest.config.ts",
+          "passWithNoTests": true,
+          "watch": false
+        }
+      },
+      "vitest:coverage": {
+        "executor": "@nx/vite:test",
+        "outputs": [
+          "coverage/apps/go-game-partykit"
+        ],
+        "options": {
+          "configFile": "apps/go-game-partykit/vitest.config.ts",
+          "passWithNoTests": true,
+          "watch": false,
+          "coverage": true
+        }
       }
     }
   }

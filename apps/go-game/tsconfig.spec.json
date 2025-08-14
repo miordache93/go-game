@@ -4,14 +4,18 @@
     "outDir": "./out-tsc/jest",
     "jsx": "react-jsx",
     "types": [
-      "jest",
+      "vitest/globals",
       "node",
       "@nx/react/typings/cssmodule.d.ts",
-      "@nx/react/typings/image.d.ts"
+      "@nx/react/typings/image.d.ts",
+      "@testing-library/jest-dom"
     ]
   },
   "include": [
     "jest.config.ts",
+    "vitest.config.ts",
+    "src/test-setup.ts",
+    "src/test-utils.tsx",
     "src/**/*.test.ts",
     "src/**/*.spec.ts",
     "src/**/*.test.tsx",

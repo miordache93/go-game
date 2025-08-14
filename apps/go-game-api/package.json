@@ -60,6 +60,39 @@
             "buildTarget": "@go-game/go-game-api:build:production"
           }
         }
+      },
+      "vitest": {
+        "executor": "@nx/vite:test",
+        "outputs": [
+          "coverage/apps/go-game-api"
+        ],
+        "options": {
+          "configFile": "apps/go-game-api/vitest.config.ts",
+          "passWithNoTests": true
+        }
+      },
+      "vitest:run": {
+        "executor": "@nx/vite:test",
+        "outputs": [
+          "coverage/apps/go-game-api"
+        ],
+        "options": {
+          "configFile": "apps/go-game-api/vitest.config.ts",
+          "passWithNoTests": true,
+          "watch": false
+        }
+      },
+      "vitest:coverage": {
+        "executor": "@nx/vite:test",
+        "outputs": [
+          "coverage/apps/go-game-api"
+        ],
+        "options": {
+          "configFile": "apps/go-game-api/vitest.config.ts",
+          "passWithNoTests": true,
+          "watch": false,
+          "coverage": true
+        }
       }
     }
   }

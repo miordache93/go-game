@@ -23,6 +23,7 @@
     "**/*.test.js",
     "**/*.spec.jsx",
     "**/*.test.jsx",
+    "vitest.config.ts",
     "eslint.config.js",
     "eslint.config.cjs",
     "eslint.config.mjs"

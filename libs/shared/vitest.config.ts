@@ -6,7 +6,7 @@ import * as path from 'path';
 
 export default defineConfig(() => ({
   root: __dirname,
-  cacheDir: '../../node_modules/.vite/libs/ui',
+  cacheDir: '../../node_modules/.vite/libs/shared',
   plugins: [
     react(),
     dts({
@@ -28,13 +28,13 @@ export default defineConfig(() => ({
     emptyOutDir: true,
     transformMixedEsModules: true,
     entry: 'src/index.ts',
-    name: '@go-game/ui',
+    name: '@go-game/shared',
     fileName: 'index',
     formats: ['es' as const],
     external: ['react', 'react-dom', 'react/jsx-runtime'],
     lib: {
       entry: 'src/index.ts',
-      name: '@go-game/ui',
+      name: '@go-game/shared',
       fileName: 'index',
       formats: ['es' as const],
     },
@@ -45,11 +45,11 @@ export default defineConfig(() => ({
     reportCompressedSize: true,
     commonjsOptions: { transformMixedEsModules: true },
   },
-  // Vitest configuration for UI components testing
+  // Vitest configuration for shared utilities testing
   test: {
-    name: '@go-game/ui',
+    name: '@go-game/shared',
     root: __dirname,
-    environment: 'happy-dom', // Happy DOM for better performance than JSDOM
+    environment: 'node', // Node environment for utilities
     include: ['src/**/*.{test,spec}.{js,ts,tsx}'],
     exclude: [
       'node_modules/**',
@@ -58,11 +58,11 @@ export default defineConfig(() => ({
       'coverage/**',
     ],
     globals: false, // Explicit imports for better tree-shaking
-    setupFiles: ['./src/test-setup.ts'],
+    setupFiles: [],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      reportsDirectory: '../../coverage/libs/ui',
+      reportsDirectory: '../../coverage/libs/shared',
       exclude: [
         'node_modules/**',
         'dist/**',
@@ -72,14 +72,13 @@ export default defineConfig(() => ({
         '**/*.stories.*',
         '**/*.test.*',
         '**/*.spec.*',
-        'src/test-setup.ts',
       ],
       thresholds: {
         global: {
-          branches: 75,
-          functions: 75,
-          lines: 75,
-          statements: 75,
+          branches: 85,
+          functions: 85,
+          lines: 85,
+          statements: 85,
         },
       },
     },

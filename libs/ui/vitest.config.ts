@@ -57,7 +57,7 @@ export default defineConfig(() => ({
       '**/*.d.ts',
       'coverage/**',
     ],
-    globals: false, // Explicit imports for better tree-shaking
+    globals: true, // Required for @testing-library/jest-dom
     setupFiles: ['./src/test-setup.ts'],
     coverage: {
       provider: 'v8',
