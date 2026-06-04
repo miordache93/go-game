@@ -2,5 +2,14 @@
   "$schema": "https://unpkg.com/partykit@0.0.115/schema.json",
   "name": "go-game-server",
   "main": "src/main.ts",
-  "compatibilityDate": "2024-01-01"
+  "compatibilityDate": "2024-01-01",
+  "build": {
+    "alias": {
+      "@go-game/game": "../../libs/game/src/lib/game.ts",
+      "@go-game/partykit-protocol": "../../libs/shared/partykit-protocol/src/index.ts",
+      "@go-game/types": "../../libs/shared/types/src/index.ts",
+      "@go-game/constants": "../../libs/shared/constants/src/index.ts",
+      "@go-game/utils": "../../libs/shared/utils/src/index.ts"
+    }
+  }
 }
