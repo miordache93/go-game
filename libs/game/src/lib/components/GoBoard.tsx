@@ -193,31 +193,20 @@ export function GoBoard({
 
   const handleClick = useCallback(
     (e: any) => {
-      console.log('🎯 Board clicked!', {
-        interactive,
-        hasHandler: !!onIntersectionClick,
-      });
-
       if (!interactive || !onIntersectionClick) {
-        console.log('❌ Click ignored - not interactive or no handler');
         return;
       }
 
       const pos = e.target.getStage().getPointerPosition();
       const boardPos = canvasToBoard(pos.x, pos.y);
 
-      console.log('📍 Click position:', { screen: pos, board: boardPos });
-
       if (boardPos) {
         // In scoring phase, allow clicking on stones to mark as dead
         const stone = board[boardPos.y][boardPos.x];
         if (stone || (!stone && deadStones.size === 0)) {
-          console.log('✅ Valid click - calling handler');
           onIntersectionClick(boardPos);
           setHoverPosition(null);
         }
-      } else {
-        console.log('❌ Invalid click - position out of bounds');
       }
     },
     [interactive, onIntersectionClick, canvasToBoard, board, deadStones]
@@ -341,10 +330,6 @@ export function GoBoard({
                   lastMove.x === colIndex;
                 const stoneRadius = cellSize * 0.4; // Slightly smaller for better visibility
                 const isDead = isDeadStone(colIndex, rowIndex);
-
-                console.log(
-                  `🔹 Rendering stone at (${colIndex},${rowIndex}) -> canvas (${x},${y}) player: ${stone.player} dead: ${isDead}`
-                );
 
                 return (
                   <Group key={`stone-${rowIndex}-${colIndex}`}>

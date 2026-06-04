@@ -15,8 +15,6 @@ export interface IGame extends Document {
     black: Types.ObjectId;
     white: Types.ObjectId;
   };
-  blackPlayer?: Types.ObjectId;
-  whitePlayer?: Types.ObjectId;
   boardSize: BoardSize;
   komi?: number;
   gameState: any;
@@ -172,14 +170,6 @@ const GameSchema = new Schema<IGame>(
         required: true,
       },
     },
-    blackPlayer: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-    },
-    whitePlayer: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-    },
     boardSize: {
       type: Number,
       required: true,
@@ -286,8 +276,8 @@ const GameSchema = new Schema<IGame>(
 );
 
 // Indexes for better query performance
-GameSchema.index({ blackPlayer: 1, createdAt: -1 });
-GameSchema.index({ whitePlayer: 1, createdAt: -1 });
+GameSchema.index({ 'players.black': 1, createdAt: -1 });
+GameSchema.index({ 'players.white': 1, createdAt: -1 });
 GameSchema.index({ status: 1, createdAt: -1 });
 GameSchema.index({ roomCode: 1 });
 GameSchema.index({ 'gameState.phase': 1 });
@@ -309,24 +299,24 @@ GameSchema.methods.generateRoomCode = function(): string {
  */
 GameSchema.methods.canJoin = function(userId: string): boolean {
   return this.status === 'waiting' && 
-         !this.whitePlayer && 
-         this.blackPlayer.toString() !== userId;
+         !this.players?.white && 
+         this.players?.black?.toString() !== userId;
 };
 
 /**
  * Check if a user is a player in this game
  */
 GameSchema.methods.isPlayer = function(userId: string): boolean {
-  return this.blackPlayer.toString() === userId || 
-         (this.whitePlayer && this.whitePlayer.toString() === userId);
+  return this.players?.black?.toString() === userId || 
+         (this.players?.white && this.players.white.toString() === userId);
 };
 
 /**
  * Get player color for a user
  */
 GameSchema.methods.getPlayerColor = function(userId: string): Player | null {
-  if (this.blackPlayer.toString() === userId) return Player.BLACK;
-  if (this.whitePlayer && this.whitePlayer.toString() === userId) return Player.WHITE;
+  if (this.players?.black?.toString() === userId) return Player.BLACK;
+  if (this.players?.white && this.players.white.toString() === userId) return Player.WHITE;
   return null;
 };
 

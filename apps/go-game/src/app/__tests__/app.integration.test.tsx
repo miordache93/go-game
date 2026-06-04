@@ -1,45 +1,40 @@
-import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '../../test-utils';
+import { render, screen, fireEvent } from '../../test-utils';
 import App from '../app';
 
-// Mock the stores to avoid actual API calls
+// Auth store backing object. Selectors are applied so the component can use
+// `useAuthStore((state) => state.x)` the same way it does at runtime.
 const mockAuthStore = {
-  user: null,
+  user: null as null | { id: string; username: string; email: string },
   isAuthenticated: false,
   isLoading: false,
-  error: null,
+  error: null as null | string,
   login: vi.fn(),
   register: vi.fn(),
   logout: vi.fn(),
   refreshAuth: vi.fn(),
 };
 
-const mockUIStore = {
-  theme: 'modern' as const,
-  gameMode: 'local' as const,
-  notifications: [],
-  addNotification: vi.fn(),
-};
-
 vi.mock('@go-game/game', () => ({
-  useAuthStore: vi.fn(() => mockAuthStore),
-  useUIStore: vi.fn(() => mockUIStore),
-  Game: vi.fn(() => <div data-testid="mock-game">Local Game</div>),
-  MultiplayerGame: vi.fn(() => <div data-testid="mock-multiplayer-game">Multiplayer Game</div>),
+  useAuthStore: vi.fn((selector?: (state: typeof mockAuthStore) => unknown) =>
+    selector ? selector(mockAuthStore) : mockAuthStore
+  ),
+  Game: () => <div data-testid="mock-game">Local Game</div>,
+  MultiplayerGame: () => (
+    <div data-testid="mock-multiplayer-game">Multiplayer Game</div>
+  ),
 }));
 
-// Mock components that might cause issues in tests
 vi.mock('../components/AuthForm', () => ({
-  AuthForm: vi.fn(() => <div data-testid="mock-auth-form">Auth Form</div>),
+  AuthForm: () => <div data-testid="mock-auth-form">Auth Form</div>,
 }));
 
 vi.mock('../components/UserProfile', () => ({
-  UserProfile: vi.fn(() => <div data-testid="mock-user-profile">User Profile</div>),
+  UserProfile: () => <div data-testid="mock-user-profile">User Profile</div>,
 }));
 
 vi.mock('../components/Leaderboard', () => ({
-  Leaderboard: vi.fn(() => <div data-testid="mock-leaderboard">Leaderboard</div>),
+  Leaderboard: () => <div data-testid="mock-leaderboard">Leaderboard</div>,
 }));
 
 describe('App Integration Tests', () => {
@@ -47,182 +42,109 @@ describe('App Integration Tests', () => {
     vi.clearAllMocks();
     mockAuthStore.user = null;
     mockAuthStore.isAuthenticated = false;
+    mockAuthStore.error = null;
+    // Reset URL between tests since we use BrowserRouter.
+    window.history.pushState({}, '', '/');
   });
 
-  describe('Authentication Flow', () => {
-    it('shows auth form when user is not authenticated', () => {
+  describe('Shell', () => {
+    it('renders the nav bar and the local game on the default route', () => {
       render(<App />);
-      
+
+      expect(screen.getByText('⚫ GO Game ⚪')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Play' })).toBeInTheDocument();
+      expect(screen.getByTestId('mock-game')).toBeInTheDocument();
+    });
+
+    it('re-validates any persisted session on mount', () => {
+      render(<App />);
+      expect(mockAuthStore.refreshAuth).toHaveBeenCalled();
+    });
+  });
+
+  describe('Authentication state', () => {
+    it('shows a Login link when unauthenticated', () => {
+      render(<App />);
+
+      expect(screen.getByRole('link', { name: 'Login' })).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Logout' })
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows the username and a Logout button when authenticated', () => {
+      mockAuthStore.isAuthenticated = true;
+      mockAuthStore.user = {
+        id: 'user123',
+        username: 'testuser',
+        email: 'test@example.com',
+      };
+
+      render(<App />);
+
+      expect(
+        screen.getByRole('link', { name: 'testuser' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Logout' })
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('link', { name: 'Login' })
+      ).not.toBeInTheDocument();
+    });
+
+    it('logs out when the Logout button is clicked', () => {
+      mockAuthStore.isAuthenticated = true;
+      mockAuthStore.user = {
+        id: 'user123',
+        username: 'testuser',
+        email: 'test@example.com',
+      };
+
+      render(<App />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Logout' }));
+      expect(mockAuthStore.logout).toHaveBeenCalled();
+    });
+  });
+
+  describe('Routing', () => {
+    it('navigates to the leaderboard', () => {
+      render(<App />);
+
+      fireEvent.click(screen.getByRole('link', { name: 'Leaderboard' }));
+      expect(screen.getByTestId('mock-leaderboard')).toBeInTheDocument();
+    });
+
+    it('navigates to the login page', () => {
+      render(<App />);
+
+      fireEvent.click(screen.getByRole('link', { name: 'Login' }));
       expect(screen.getByTestId('mock-auth-form')).toBeInTheDocument();
     });
 
-    it('shows game interface when user is authenticated', () => {
-      mockAuthStore.user = {
-        id: 'user123',
-        username: 'testuser',
-        email: 'test@example.com',
-      };
-      mockAuthStore.isAuthenticated = true;
-      
+    it('navigates to multiplayer', () => {
       render(<App />);
-      
-      expect(screen.queryByTestId('mock-auth-form')).not.toBeInTheDocument();
-      expect(screen.getByTestId('mock-game')).toBeInTheDocument();
-    });
-  });
 
-  describe('Game Mode Switching', () => {
-    beforeEach(() => {
-      mockAuthStore.user = {
-        id: 'user123',
-        username: 'testuser',
-        email: 'test@example.com',
-      };
-      mockAuthStore.isAuthenticated = true;
-    });
-
-    it('shows local game by default', () => {
-      mockUIStore.gameMode = 'local';
-      
-      render(<App />);
-      
-      expect(screen.getByTestId('mock-game')).toBeInTheDocument();
-    });
-
-    it('shows multiplayer game when mode is multiplayer', () => {
-      mockUIStore.gameMode = 'multiplayer';
-      
-      render(<App />);
-      
+      fireEvent.click(screen.getByRole('link', { name: 'Multiplayer' }));
       expect(screen.getByTestId('mock-multiplayer-game')).toBeInTheDocument();
     });
-  });
 
-  describe('Loading States', () => {
-    it('shows loading state during authentication', () => {
-      mockAuthStore.isLoading = true;
-      
+    it('redirects unauthenticated users away from the profile route', () => {
+      window.history.pushState({}, '', '/profile');
       render(<App />);
-      
-      // Should show some loading indicator
-      // This depends on how your App component handles loading states
+
+      // ProfileRoute redirects to /login, which renders the auth form.
       expect(screen.getByTestId('mock-auth-form')).toBeInTheDocument();
+      expect(screen.queryByTestId('mock-user-profile')).not.toBeInTheDocument();
     });
   });
 
-  describe('Error Handling', () => {
-    it('handles authentication errors gracefully', () => {
-      mockAuthStore.error = 'Authentication failed';
-      
-      render(<App />);
-      
-      // Should still render auth form with error
-      expect(screen.getByTestId('mock-auth-form')).toBeInTheDocument();
-    });
-  });
-
-  describe('Theme Application', () => {
-    it('applies theme from store', () => {
-      mockUIStore.theme = 'zen';
-      
-      render(<App />);
-      
-      // Theme should be applied to the root
-      // This is hard to test directly, but component should render
-      expect(screen.getByTestId('mock-auth-form')).toBeInTheDocument();
-    });
-  });
-
-  describe('Navigation', () => {
-    beforeEach(() => {
-      mockAuthStore.isAuthenticated = true;
-      mockAuthStore.user = {
-        id: 'user123',
-        username: 'testuser',
-        email: 'test@example.com',
-      };
-    });
-
-    it('handles navigation between different views', () => {
-      render(<App />);
-      
-      // Should render the main game interface
-      expect(screen.getByTestId('mock-game')).toBeInTheDocument();
-    });
-  });
-
-  describe('Responsive Design', () => {
-    it('renders without layout issues', () => {
-      render(<App />);
-      
-      // Basic rendering test
-      expect(screen.getByTestId('mock-auth-form')).toBeInTheDocument();
-    });
-  });
-
-  describe('Store Integration', () => {
-    it('initializes with correct store values', () => {
-      render(<App />);
-      
-      // Stores should be called during render
-      expect(mockUIStore.theme).toBe('modern');
-      expect(mockAuthStore.isAuthenticated).toBe(false);
-    });
-
-    it('responds to store changes', () => {
-      const { rerender } = render(<App />);
-      
-      expect(screen.getByTestId('mock-auth-form')).toBeInTheDocument();
-      
-      // Simulate authentication
-      mockAuthStore.isAuthenticated = true;
-      mockAuthStore.user = {
-        id: 'user123',
-        username: 'testuser',
-        email: 'test@example.com',
-      };
-      
-      rerender(<App />);
-      
-      expect(screen.getByTestId('mock-game')).toBeInTheDocument();
-    });
-  });
-
-  describe('Component Lifecycle', () => {
+  describe('Lifecycle', () => {
     it('mounts and unmounts without errors', () => {
       const { unmount } = render(<App />);
-      
-      expect(screen.getByTestId('mock-auth-form')).toBeInTheDocument();
-      
+      expect(screen.getByTestId('mock-game')).toBeInTheDocument();
       expect(() => unmount()).not.toThrow();
-    });
-
-    it('handles rapid re-renders', () => {
-      const { rerender } = render(<App />);
-      
-      for (let i = 0; i < 5; i++) {
-        rerender(<App />);
-      }
-      
-      expect(screen.getByTestId('mock-auth-form')).toBeInTheDocument();
-    });
-  });
-
-  describe('Memory Management', () => {
-    it('cleans up properly on unmount', () => {
-      const { unmount } = render(<App />);
-      
-      // Should not throw on unmount
-      expect(() => unmount()).not.toThrow();
-    });
-  });
-
-  describe('Accessibility', () => {
-    it('has proper document structure', () => {
-      render(<App />);
-      
-      // Should render without accessibility violations
-      expect(screen.getByTestId('mock-auth-form')).toBeInTheDocument();
     });
   });
 });

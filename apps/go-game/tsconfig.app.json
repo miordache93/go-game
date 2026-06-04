@@ -26,7 +26,6 @@
     "src/test-setup.ts",
     "src/test-utils.tsx",
     "vitest.config.ts",
-    "jest.config.ts",
     "eslint.config.js",
     "eslint.config.cjs",
     "eslint.config.mjs"

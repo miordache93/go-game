@@ -1,7 +1,18 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { notifications } from '@mantine/notifications';
 
 export type Theme = 'classic' | 'modern' | 'zen';
+
+// Map the store's semantic notification types to Mantine colors so the whole
+// app renders through a single notification system (<Notifications /> in the
+// ThemeProvider) instead of two parallel ones.
+const NOTIFICATION_COLORS: Record<'success' | 'error' | 'info' | 'warning', string> = {
+  success: 'green',
+  error: 'red',
+  info: 'blue',
+  warning: 'yellow',
+};
 export type GameMode = 'local' | 'multiplayer' | 'ai';
 export type BoardSize = 9 | 13 | 19;
 
@@ -79,7 +90,7 @@ export const useUIStore = create<UIState>()(
       }),
 
       // Notification actions
-      addNotification: (notification) =>
+      addNotification: (notification) => {
         set((state) => ({
           notifications: [
             ...state.notifications,
@@ -89,7 +100,19 @@ export const useUIStore = create<UIState>()(
               timestamp: Date.now(),
             },
           ].slice(-5), // Keep only last 5 notifications
-        })),
+        }));
+
+        // Surface through Mantine so it is actually visible to the user.
+        try {
+          notifications.show({
+            title: notification.title,
+            message: notification.message,
+            color: NOTIFICATION_COLORS[notification.type],
+          });
+        } catch {
+          // Mantine store not ready (e.g. during isolated unit tests) — ignore.
+        }
+      },
 
       removeNotification: (id) =>
         set((state) => ({

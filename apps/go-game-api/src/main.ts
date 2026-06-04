@@ -1,7 +1,6 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
-import session from 'express-session';
 import rateLimit from 'express-rate-limit';
 
 // Import configurations
@@ -83,18 +82,6 @@ function setupMiddleware(app: Application) {
   } else {
     app.use(morgan('combined'));
   }
-
-  // Session
-  app.use(session({
-    secret: config.sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: config.nodeEnv === 'production',
-      httpOnly: true,
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    },
-  }));
 
   // Rate limiting
   const limiter = rateLimit({

@@ -12,7 +12,6 @@
     ]
   },
   "include": [
-    "jest.config.ts",
     "vitest.config.ts",
     "src/test-setup.ts",
     "src/test-utils.tsx",

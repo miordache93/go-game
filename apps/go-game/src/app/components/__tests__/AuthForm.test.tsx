@@ -11,7 +11,7 @@ const mockAuthStore = {
   login: vi.fn(),
   register: vi.fn(),
   isLoading: false,
-  error: null,
+  error: null as string | null,
   clearError: vi.fn(),
 };
 

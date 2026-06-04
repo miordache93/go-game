@@ -8,50 +8,62 @@ dotenv.config({ path: envPath });
 /**
  * Environment configuration
  */
+const nodeEnv = process.env.NODE_ENV || 'development';
+const isProduction = nodeEnv === 'production';
+
+// Dev-only fallbacks. In production the validation below guarantees the real
+// values are supplied via environment variables, so these are never used.
+const DEV_JWT_SECRET = 'dev-jwt-secret';
+const DEV_JWT_REFRESH_SECRET = 'dev-jwt-refresh-secret';
+const DEV_PARTYKIT_WEBHOOK_SECRET = 'dev-partykit-webhook-secret';
+
 export const config = {
   // Server
-  nodeEnv: process.env.NODE_ENV || 'development',
+  nodeEnv,
+  isProduction,
   host: process.env.HOST || 'localhost',
   port: parseInt(process.env.PORT || '8080', 10),
-  
+
   // MongoDB
   mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/go-game',
   mongoDbName: process.env.MONGODB_DB_NAME || 'go-game',
-  
-  // Redis
-  redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
-  
+
   // JWT
-  jwtSecret: process.env.JWT_SECRET || 'default-jwt-secret-change-this',
+  jwtSecret: process.env.JWT_SECRET || DEV_JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'default-refresh-secret-change-this',
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || DEV_JWT_REFRESH_SECRET,
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
-  
-  // Session
-  sessionSecret: process.env.SESSION_SECRET || 'default-session-secret-change-this',
-  
+
+  // PartyKit webhook (shared secret between PartyKit server and this API)
+  partykitWebhookSecret:
+    process.env.PARTYKIT_WEBHOOK_SECRET || DEV_PARTYKIT_WEBHOOK_SECRET,
+
   // CORS
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:4200',
-  
+
   // Rate Limiting
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
   rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
-  
+
   // Logging
   logLevel: process.env.LOG_LEVEL || 'debug',
 };
 
-// Validate required environment variables
+// Fail fast in production if any required secret is missing rather than
+// silently running with insecure dev defaults.
 const requiredEnvVars = [
   'JWT_SECRET',
   'JWT_REFRESH_SECRET',
-  'SESSION_SECRET',
+  'PARTYKIT_WEBHOOK_SECRET',
+  'MONGODB_URI',
 ];
 
-if (config.nodeEnv === 'production') {
-  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-  
+if (isProduction) {
+  const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
+
   if (missingVars.length > 0) {
-    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    throw new Error(
+      `Missing required environment variables: ${missingVars.join(', ')}`
+    );
   }
 }

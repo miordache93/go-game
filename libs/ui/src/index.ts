@@ -1,5 +1,3 @@
-export * from './lib/ui';
-
 // Theme exports
 export { ThemeProvider } from './lib/theme/ThemeProvider';
 export { goTheme, boardColors } from './lib/theme/go-theme';

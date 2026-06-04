@@ -50,6 +50,15 @@ const partykitWebhookValidation = [
 // Public routes
 router.get('/leaderboard', gameController.getLeaderboard);
 
+// PartyKit webhook — public route authenticated via webhook secret (checked in
+// controller), NOT JWT. Must be registered before the `authenticate` guard so
+// PartyKit's tokenless server-to-server call is not rejected with a 401.
+router.post('/webhook/partykit',
+  partykitWebhookValidation,
+  validateRequest,
+  gameController.savePartykitGame
+);
+
 // Protected routes
 router.use(authenticate);
 
@@ -67,13 +76,6 @@ router.get('/user/:userId/stats',
   param('userId').optional().isMongoId(), 
   validateRequest, 
   gameController.getUserStats
-);
-
-// PartyKit webhook (should verify secret in production)
-router.post('/webhook/partykit', 
-  partykitWebhookValidation, 
-  validateRequest, 
-  gameController.savePartykitGame
 );
 
 export default router;

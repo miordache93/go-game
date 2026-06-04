@@ -81,6 +81,7 @@ vi.mock('../../services/api-client', () => ({
     logout: vi.fn(),
     getProfile: vi.fn(),
     isAuthenticated: vi.fn(() => false),
+    getToken: vi.fn(() => null),
   },
 }));
 

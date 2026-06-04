@@ -52,3 +52,6 @@ vitest.config.*.timestamp*
 .env
 .env.local
 .env.*.local
+.nx/polygraph
+.claude/worktrees
+.claude/settings.local.json

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import gameService from '../services/gameService';
 import { AuthRequest } from '../middleware/auth';
+import { config } from '../config/env';
 
 class GameController {
   // Create a new game
@@ -166,9 +167,15 @@ class GameController {
         completedAt 
       } = req.body;
 
-      // Verify webhook secret (you should add this to env)
+      // Verify webhook secret. Read at request time so the value can be set by
+      // the environment (and by tests). Falls back to the dev secret only
+      // outside production; production requires PARTYKIT_WEBHOOK_SECRET (enforced
+      // in config/env validation).
       const webhookSecret = req.headers['x-webhook-secret'];
-      if (webhookSecret !== process.env.PARTYKIT_WEBHOOK_SECRET) {
+      const expectedSecret =
+        process.env.PARTYKIT_WEBHOOK_SECRET ||
+        (config.isProduction ? undefined : config.partykitWebhookSecret);
+      if (!expectedSecret || webhookSecret !== expectedSecret) {
         return res.status(401).json({
           success: false,
           error: 'Invalid webhook secret'

@@ -12,12 +12,18 @@ import {
 } from '@go-game/partykit-protocol';
 import { Player, GamePhase, MoveType } from '@go-game/types';
 
+// Input validation / abuse limits for untrusted client messages.
+const MAX_CHAT_LENGTH = 500;
+const MIN_CHAT_INTERVAL_MS = 500;
+const MAX_NAME_LENGTH = 32;
+
 export default class GoGameServer implements Party.Server {
   private roomState: RoomState;
   private gameEngine: GameEngine;
   private connections: Map<string, Party.Connection> = new Map();
   private gameStartTime: Date | null = null;
   private moves: any[] = [];
+  private lastChatAt: Map<string, number> = new Map();
 
   constructor(public room: Party.Room) {
     // Initialize game engine
@@ -117,6 +123,7 @@ export default class GoGameServer implements Party.Server {
     
     // Remove from spectators if applicable
     this.roomState.spectators.delete(connection.id);
+    this.lastChatAt.delete(connection.id);
   }
 
   // ==========================================
@@ -124,12 +131,16 @@ export default class GoGameServer implements Party.Server {
   // ==========================================
 
   private async handleJoin(msg: ClientToServerMessage & { type: ClientMessageType.JOIN }, sender: Party.Connection) {
+    const rawName =
+      typeof msg.playerInfo?.name === 'string' ? msg.playerInfo.name.trim() : '';
+    const name = (rawName || 'Player').slice(0, MAX_NAME_LENGTH);
+
     const playerInfo: PlayerInfo = {
       id: sender.id,
-      name: msg.playerInfo.name,
+      name,
       role: PlayerRole.SPECTATOR,
       isConnected: true,
-      userId: msg.playerInfo.userId,
+      userId: msg.playerInfo?.userId,
     };
 
     // Try to assign requested role
@@ -395,12 +406,25 @@ export default class GoGameServer implements Party.Server {
     const player = this.roomState.players.get(sender.id);
     if (!player) return;
 
+    // Validate and clamp message content.
+    const raw = typeof msg.message === 'string' ? msg.message.trim() : '';
+    if (!raw) return;
+    const message = raw.slice(0, MAX_CHAT_LENGTH);
+
+    // Basic per-connection rate limit to prevent chat spam/flooding.
+    const now = Date.now();
+    const last = this.lastChatAt.get(sender.id) ?? 0;
+    if (now - last < MIN_CHAT_INTERVAL_MS) {
+      return;
+    }
+    this.lastChatAt.set(sender.id, now);
+
     // Broadcast chat message
     this.broadcast({
       type: ServerMessageType.CHAT_BROADCAST,
       playerId: sender.id,
       playerName: player.name,
-      message: msg.message,
+      message,
       timestamp: Date.now(),
     });
   }
@@ -533,11 +557,13 @@ export default class GoGameServer implements Party.Server {
         players: {
           black: {
             id: this.roomState.blackPlayerId,
-            name: blackPlayer.name
+            name: blackPlayer.name,
+            userId: blackPlayer.userId
           },
           white: {
             id: this.roomState.whitePlayerId,
-            name: whitePlayer.name
+            name: whitePlayer.name,
+            userId: whitePlayer.userId
           }
         },
         gameState: this.roomState.gameState,
@@ -551,9 +577,11 @@ export default class GoGameServer implements Party.Server {
         completedAt: new Date()
       };
 
-      // Send to backend API
+      // Send to backend API. The webhook secret must match the API's
+      // (config.partykitWebhookSecret); the dev fallback is shared here.
       const apiUrl = process.env.API_URL || 'http://localhost:8080/api';
-      const webhookSecret = process.env.PARTYKIT_WEBHOOK_SECRET || 'default-secret';
+      const webhookSecret =
+        process.env.PARTYKIT_WEBHOOK_SECRET || 'dev-partykit-webhook-secret';
       
       const response = await fetch(`${apiUrl}/game/webhook/partykit`, {
         method: 'POST',

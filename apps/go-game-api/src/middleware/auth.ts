@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { User, IUser } from '../models/User';
+import { config } from '../config/env';
 
 /**
  * Extended Express Request interface with user
@@ -44,10 +45,7 @@ export const authenticate = async (
     const token = authHeader.substring(7);
     
     // Verify token
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'default-secret'
-    ) as JWTPayload;
+    const decoded = jwt.verify(token, config.jwtSecret) as JWTPayload;
 
     // Find user
     const user = await User.findById(decoded.userId).select('-password');
@@ -114,10 +112,7 @@ export const optionalAuth = async (
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'default-secret'
-    ) as JWTPayload;
+    const decoded = jwt.verify(token, config.jwtSecret) as JWTPayload;
 
     const user = await User.findById(decoded.userId).select('-password');
     
@@ -137,12 +132,10 @@ export const optionalAuth = async (
  * Generate JWT token
  */
 export const generateToken = (userId: string, username: string): string => {
-  const secret = process.env.JWT_SECRET || 'default-secret';
-  
   return jwt.sign(
     { userId, username },
-    secret,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
+    config.jwtSecret,
+    { expiresIn: config.jwtExpiresIn } as any
   );
 };
 
@@ -150,12 +143,10 @@ export const generateToken = (userId: string, username: string): string => {
  * Generate refresh token
  */
 export const generateRefreshToken = (userId: string): string => {
-  const secret = process.env.JWT_REFRESH_SECRET || 'default-refresh-secret';
-  
   return jwt.sign(
     { userId },
-    secret,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d' } as any
+    config.jwtRefreshSecret,
+    { expiresIn: config.jwtRefreshExpiresIn } as any
   );
 };
 
@@ -163,8 +154,5 @@ export const generateRefreshToken = (userId: string): string => {
  * Verify refresh token
  */
 export const verifyRefreshToken = (token: string): JWTPayload => {
-  return jwt.verify(
-    token,
-    process.env.JWT_REFRESH_SECRET || 'default-refresh-secret'
-  ) as JWTPayload;
+  return jwt.verify(token, config.jwtRefreshSecret) as JWTPayload;
 };

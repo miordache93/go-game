@@ -5,6 +5,8 @@ import { GoBoard } from './GoBoard';
 import { GameControls } from './GameControls';
 import { ScoringControls } from './ScoringControls';
 import { PartyKitClient } from '../services/partykit-client';
+import { apiClient } from '../services/api-client';
+import { useAuthStore } from '../stores/auth-store';
 import { GameState, Position, Player, GamePhase } from '@go-game/types';
 import { PlayerInfo, PlayerRole, createRoomId } from '@go-game/partykit-protocol';
 import { IconPlus, IconLogin } from '@tabler/icons-react';
@@ -33,6 +35,9 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
   const [client, setClient] = useState<PartyKitClient | null>(null);
   const [deadStones, setDeadStones] = useState<Set<string>>(new Set());
 
+  // Authenticated identity (optional) so completed games map to real accounts
+  const authUser = useAuthStore((state) => state.user);
+
   // Disconnect and cleanup
   const disconnect = useCallback(() => {
     if (client) {
@@ -56,6 +61,8 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
     const partyClient = new PartyKitClient({
       roomId: roomToJoin,
       playerName: name,
+      userId: authUser?.id,
+      authToken: apiClient.getToken() ?? undefined,
       
       onConnect: () => {
         setIsConnected(true);
@@ -189,7 +196,7 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
     setRoomId(roomToJoin);
     setPlayerName(name);
     setShowModal(false);
-  }, [disconnect, players]);
+  }, [disconnect, players, authUser]);
 
   // Cleanup on unmount
   useEffect(() => {

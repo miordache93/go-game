@@ -20,8 +20,8 @@ interface UpdateGameDto {
 interface PartykitGameDto {
   roomId: string;
   players: {
-    black: { id: string; name: string };
-    white: { id: string; name: string };
+    black: { id: string; name: string; userId?: string };
+    white: { id: string; name: string; userId?: string };
   };
   gameState: any;
   moves: any[];
@@ -465,9 +465,19 @@ class GameService {
   }
 
   // Find or create user for PartyKit integration
-  private async findOrCreateUser(userData: { id: string; name: string }): Promise<IUser> {
-    let user = await User.findOne({ partykitId: userData.id });
-    
+  private async findOrCreateUser(userData: { id: string; name: string; userId?: string }): Promise<IUser> {
+    let user: IUser | null = null;
+
+    // Prefer the authenticated backend user id forwarded from the PartyKit
+    // join handshake so completed games attach to the real account.
+    if (userData.userId && /^[0-9a-fA-F]{24}$/.test(userData.userId)) {
+      user = await User.findById(userData.userId);
+    }
+
+    if (!user) {
+      user = await User.findOne({ partykitId: userData.id });
+    }
+
     if (!user) {
       user = await User.findOne({ username: userData.name });
     }

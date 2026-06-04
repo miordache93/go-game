@@ -53,7 +53,6 @@ export class PartyKitClient {
     });
 
     this.socket.addEventListener('open', () => {
-      console.log('✅ Connected to PartyKit server');
       this.isConnected = true;
       this.config.onConnect?.();
 
@@ -71,13 +70,11 @@ export class PartyKitClient {
     });
 
     this.socket.addEventListener('close', () => {
-      console.log('❌ Disconnected from PartyKit server');
       this.isConnected = false;
       this.config.onDisconnect?.();
 
       // Attempt to reconnect after 3 seconds
       this.reconnectTimeout = setTimeout(() => {
-        console.log('🔄 Attempting to reconnect...');
         this.connect();
       }, 3000);
     });
@@ -118,8 +115,6 @@ export class PartyKitClient {
   }
 
   private handleMessage(message: ServerToClientMessage): void {
-    console.log('📨 Received message:', message.type);
-
     switch (message.type) {
       case ServerMessageType.ROLE_ASSIGNED:
         this.config.onRoleAssigned?.(message.role, message.playerId);

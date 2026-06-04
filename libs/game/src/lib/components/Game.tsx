@@ -55,37 +55,11 @@ export function Game({
   // Test mode state for development
   const [useTestGame, setUseTestGame] = useState(initialUseTestGame);
 
-  // Initialize game engine with demo stones
-  const [gameEngine, setGameEngine] = useState<GameEngine>(() => {
-    // Use test game if requested (for easy scoring testing)
-    if (useTestGame) {
-      return createScoringTestGame();
-    }
-
-    const engine = createBeginnerGame();
-
-    // Add demo stones to showcase the board
-    console.log('🎮 Placing demo stones...');
-    const moves = [
-      { player: Player.BLACK, pos: { x: 2, y: 2 } },
-      { player: Player.WHITE, pos: { x: 6, y: 2 } },
-      { player: Player.BLACK, pos: { x: 2, y: 6 } },
-      { player: Player.WHITE, pos: { x: 6, y: 6 } },
-      { player: Player.BLACK, pos: { x: 4, y: 4 } },
-    ];
-
-    moves.forEach(({ player, pos }) => {
-      const result = engine.makeMove(player, MoveType.PLACE_STONE, pos);
-      console.log(
-        `🔷 Move ${player} at (${pos.x},${pos.y}):`,
-        result.success ? '✅' : '❌',
-        result.error || ''
-      );
-    });
-
-    console.log('📋 Final board state:', engine.getGameState().board);
-    return engine;
-  });
+  // Initialize game engine with a clean board. The scoring test game is only
+  // used when explicitly requested via the dev-only toggle.
+  const [gameEngine, setGameEngine] = useState<GameEngine>(() =>
+    useTestGame ? createScoringTestGame() : createBeginnerGame()
+  );
 
   // Force re-render counter
   const [refreshKey, setRefreshKey] = useState(0);
@@ -123,21 +97,13 @@ export function Game({
       }
 
       // Normal stone placement during playing phase
-      console.log(
-        `🖱️ Click at (${position.x},${position.y}) by ${gameState.currentPlayer}`
-      );
-
       const result = gameEngine.makeMove(
         gameState.currentPlayer,
         MoveType.PLACE_STONE,
         position
       );
 
-      console.log('📋 Move result:', result);
-
       if (result.success) {
-        console.log('✅ Move successful!');
-
         // Show capture notification if stones were captured
         if (result.capturedStones && result.capturedStones.length > 0) {
           notifications.show({
@@ -163,8 +129,6 @@ export function Game({
         // Force re-render
         forceRefresh();
       } else {
-        console.log('❌ Move failed:', result.error);
-
         // Show error notification
         notifications.show({
           title: '❌ Invalid Move',
