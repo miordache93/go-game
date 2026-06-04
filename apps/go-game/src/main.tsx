@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import App from './app/app';
+import { initCapacitor } from './app/capacitor-init';
 import './styles.scss';
 
 // Create a query client
@@ -38,3 +39,6 @@ root.render(
     </QueryClientProvider>
   </StrictMode>
 );
+
+// Configure native status bar / splash screen when running inside Capacitor.
+void initCapacitor();

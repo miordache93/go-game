@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useElementSize } from '@mantine/hooks';
 import {
   Container,
   Title,
@@ -69,11 +70,17 @@ export function Game({
     setRefreshKey((prev) => prev + 1);
   }, []);
 
-  // Responsive board size - CSS will handle the viewport responsiveness
-  const getBoardSize = () => {
-    // Base size that works well - CSS and flexbox will make it responsive
-    return 450;
-  };
+  // Measure the available board area so the (fixed-pixel) Konva canvas can be
+  // sized to fit any viewport instead of overflowing on small screens.
+  const { ref: boardAreaRef, width: boardAreaW, height: boardAreaH } =
+    useElementSize();
+
+  // Square board that fits the measured area, clamped to a sane range.
+  // Falls back to 450 before the first measurement.
+  const boardPx =
+    boardAreaW && boardAreaH
+      ? Math.max(220, Math.min(boardAreaW, boardAreaH, 520) - 8)
+      : 450;
 
   // Get current game state
   const gameState = gameEngine.getGameState();
@@ -409,12 +416,14 @@ export function Game({
           >
             {/* Game Board - Responsive Flex */}
             <div
+              ref={boardAreaRef}
               style={{
                 flex: 1,
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
                 minWidth: 0, // Important for flex
+                minHeight: 0,
               }}
             >
               <GoBoard
@@ -422,8 +431,8 @@ export function Game({
                 boardSize={gameState.boardSize}
                 currentPlayer={gameState.currentPlayer}
                 theme={currentTheme}
-                width={getBoardSize()}
-                height={getBoardSize()}
+                width={boardPx}
+                height={boardPx}
                 lastMove={gameState.lastMove?.position}
                 onIntersectionClick={handleIntersectionClick}
                 interactive={

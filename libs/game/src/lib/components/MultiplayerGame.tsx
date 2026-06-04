@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Container, Title, Text, Button, Badge, Group, Stack, Card, TextInput, Modal } from '@mantine/core';
+import { useElementSize, useViewportSize } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { GoBoard } from './GoBoard';
 import { GameControls } from './GameControls';
@@ -37,6 +38,17 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
 
   // Authenticated identity (optional) so completed games map to real accounts
   const authUser = useAuthStore((state) => state.user);
+
+  // Size the board to fit its container width and the viewport height so the
+  // fixed-pixel Konva canvas never overflows on small/mobile screens.
+  const { ref: boardAreaRef, width: boardAreaW } = useElementSize();
+  const { height: viewportH } = useViewportSize();
+  const boardPx = boardAreaW
+    ? Math.max(
+        220,
+        Math.min(boardAreaW - 8, (viewportH || 800) * 0.7, 560)
+      )
+    : 500;
 
   // Disconnect and cleanup
   const disconnect = useCallback(() => {
@@ -501,17 +513,34 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
         )}
       </Stack>
 
-      {/* Main game area */}
-      <Group grow align="start" style={{ flex: 1 }}>
+      {/* Main game area - wraps to a single column on narrow screens */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          alignItems: 'flex-start',
+        }}
+      >
         {/* Board */}
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div
+          ref={boardAreaRef}
+          style={{
+            flex: '1 1 320px',
+            minWidth: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
           <GoBoard
             board={gameState.board}
             boardSize={gameState.boardSize}
             currentPlayer={gameState.currentPlayer}
             theme="modern"
-            width={500}
-            height={500}
+            width={boardPx}
+            height={boardPx}
             lastMove={gameState.lastMove?.position}
             onIntersectionClick={handleIntersectionClick}
             interactive={true} // Always allow clicks, we'll handle permissions in the click handler
@@ -520,7 +549,7 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
         </div>
 
         {/* Controls */}
-        <Stack gap="md" style={{ maxWidth: 300 }}>
+        <Stack gap="md" style={{ flex: '1 1 260px', minWidth: 0, maxWidth: 320 }}>
           {gameState.phase === GamePhase.SCORING ? (
             <ScoringControls
               score={currentScore}
@@ -594,7 +623,7 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
             </Text>
           </Card>
         </Stack>
-      </Group>
+      </div>
     </Container>
   );
 }

@@ -235,6 +235,8 @@ export function GoBoard({
         overflow: 'hidden',
         width: 'fit-content',
         height: 'fit-content',
+        // Prevent double-tap-to-zoom / scroll hijacking so taps register cleanly
+        touchAction: 'manipulation',
       }}
     >
       <div

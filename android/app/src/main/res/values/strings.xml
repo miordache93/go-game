@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Go Game</string>
+    <string name="title_activity_main">Go Game</string>
+    <string name="package_name">com.gogame.app</string>
+    <string name="custom_url_scheme">com.gogame.app</string>
+</resources>
