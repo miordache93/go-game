@@ -57,10 +57,15 @@ function findTerritory(
     const current = stack.pop()!;
     const key = positionKey(current);
 
+    const intersection = board[current.y][current.x];
+
+    if (intersection && !deadStones.has(key)) {
+      adjacentPlayers.add(intersection.player);
+      continue;
+    }
+
     if (visited.has(key)) continue;
     visited.add(key);
-
-    const intersection = board[current.y][current.x];
 
     // If it's a dead stone, treat as empty
     if (intersection && deadStones.has(key)) {
@@ -68,10 +73,6 @@ function findTerritory(
     } else if (!intersection) {
       // Empty intersection
       positions.add(current);
-    } else {
-      // Hit a live stone - mark which player borders this territory
-      adjacentPlayers.add(intersection.player);
-      continue;
     }
 
     // Check adjacent positions
@@ -95,11 +96,70 @@ function findTerritory(
     controlledBy = Array.from(adjacentPlayers)[0];
   }
 
+  if (
+    controlledBy &&
+    (isLargeOpenEdgeRegion(positions, board.length) ||
+      isFalseSinglePointEye(positions, board, controlledBy, deadStones))
+  ) {
+    controlledBy = null;
+  }
+
   return {
     positions,
     controlledBy,
     points: controlledBy ? positions.size : 0,
   };
+}
+
+function isLargeOpenEdgeRegion(
+  positions: Set<Position>,
+  boardSize: number
+): boolean {
+  return (
+    positions.size > boardSize * 2 &&
+    Array.from(positions).some(
+      ({ x, y }) =>
+        x === 0 || y === 0 || x === boardSize - 1 || y === boardSize - 1
+    )
+  );
+}
+
+function isFalseSinglePointEye(
+  positions: Set<Position>,
+  board: Board,
+  controlledBy: Player,
+  deadStones: Set<string>
+): boolean {
+  if (positions.size !== 1) {
+    return false;
+  }
+
+  const [position] = Array.from(positions);
+  const diagonalDirections = [
+    { x: -1, y: -1 },
+    { x: 1, y: -1 },
+    { x: -1, y: 1 },
+    { x: 1, y: 1 },
+  ];
+
+  return diagonalDirections.some((direction) => {
+    const diagonal = {
+      x: position.x + direction.x,
+      y: position.y + direction.y,
+    };
+
+    if (!isValidPosition(diagonal, board.length as BoardSize)) {
+      return false;
+    }
+
+    const stone = board[diagonal.y]?.[diagonal.x] ?? null;
+
+    return (
+      stone &&
+      stone.player !== controlledBy &&
+      !deadStones.has(positionKey(diagonal))
+    );
+  });
 }
 
 /**

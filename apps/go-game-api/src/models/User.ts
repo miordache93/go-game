@@ -29,7 +29,7 @@ export interface IUser extends Document {
   lastLogin?: Date;
   createdAt: Date;
   updatedAt: Date;
-  
+
   // Methods
   comparePassword(candidatePassword: string): Promise<boolean>;
   updateStats(won: boolean, drawn: boolean): Promise<void>;
@@ -43,19 +43,23 @@ const UserSchema = new Schema<IUser>(
     username: {
       type: String,
       required: [true, 'Username is required'],
-      unique: true,
       trim: true,
       minlength: [3, 'Username must be at least 3 characters'],
       maxlength: [20, 'Username cannot exceed 20 characters'],
-      match: [/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'],
+      match: [
+        /^[a-zA-Z0-9_]+$/,
+        'Username can only contain letters, numbers, and underscores',
+      ],
     },
     email: {
       type: String,
       required: [true, 'Email is required'],
-      unique: true,
       lowercase: true,
       trim: true,
-      match: [/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/, 'Please provide a valid email'],
+      match: [
+        /^[\w.-]+@([\w-]+\.)+[\w-]{2,4}$/,
+        'Please provide a valid email',
+      ],
     },
     password: {
       type: String,
@@ -65,8 +69,6 @@ const UserSchema = new Schema<IUser>(
     },
     partykitId: {
       type: String,
-      sparse: true,
-      unique: true,
       default: null,
     },
     elo: {
@@ -168,7 +170,9 @@ UserSchema.pre('save', async function (next) {
 /**
  * Compare password method
  */
-UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
+UserSchema.methods.comparePassword = async function (
+  candidatePassword: string
+): Promise<boolean> {
   try {
     return await bcrypt.compare(candidatePassword, this.password);
   } catch (error) {
@@ -179,7 +183,10 @@ UserSchema.methods.comparePassword = async function (candidatePassword: string):
 /**
  * Update user statistics after a game
  */
-UserSchema.methods.updateStats = async function (won: boolean, drawn: boolean): Promise<void> {
+UserSchema.methods.updateStats = async function (
+  won: boolean,
+  drawn: boolean
+): Promise<void> {
   if (!this.stats) {
     this.stats = {
       gamesPlayed: 0,
@@ -188,12 +195,12 @@ UserSchema.methods.updateStats = async function (won: boolean, drawn: boolean): 
       draws: 0,
       winStreak: 0,
       bestWinStreak: 0,
-      lastGameAt: new Date()
+      lastGameAt: new Date(),
     };
   }
-  
+
   this.stats.gamesPlayed += 1;
-  
+
   if (drawn) {
     this.stats.draws += 1;
     this.stats.winStreak = 0;
@@ -207,9 +214,9 @@ UserSchema.methods.updateStats = async function (won: boolean, drawn: boolean): 
     this.stats.losses += 1;
     this.stats.winStreak = 0;
   }
-  
+
   this.stats.lastGameAt = new Date();
-  
+
   await this.save();
 };
 

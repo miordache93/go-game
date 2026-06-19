@@ -65,17 +65,22 @@ router.use(authenticate);
 // Game CRUD operations
 router.post('/create', createGameValidation, validateRequest, gameController.createGame);
 router.get('/list', getUserGamesValidation, validateRequest, gameController.getUserGames);
+
+// User statistics
+router.get('/user/me/stats',
+  gameController.getUserStats
+);
+
+router.get('/user/:userId/stats', 
+  param('userId').isMongoId().withMessage('Invalid user ID'),
+  validateRequest, 
+  gameController.getUserStats
+);
+
 router.get('/:id', param('id').isMongoId(), validateRequest, gameController.getGame);
 router.put('/:id', updateGameValidation, validateRequest, gameController.updateGame);
 router.post('/:id/move', recordMoveValidation, validateRequest, gameController.recordMove);
 router.get('/:id/history', param('id').isMongoId(), validateRequest, gameController.getGameHistory);
 router.post('/:id/resign', param('id').isMongoId(), validateRequest, gameController.resignGame);
-
-// User statistics
-router.get('/user/:userId/stats', 
-  param('userId').optional().isMongoId(), 
-  validateRequest, 
-  gameController.getUserStats
-);
 
 export default router;

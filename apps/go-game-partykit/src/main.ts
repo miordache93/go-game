@@ -5,6 +5,8 @@ import {
   type ServerToClientMessage,
   type PlayerInfo,
   type RoomState,
+  type PublicRoomInfo,
+  type PublicRoomListResponse,
   ClientMessageType,
   ServerMessageType,
   PlayerRole,
@@ -16,6 +18,80 @@ import { Player, GamePhase, MoveType } from '@go-game/types';
 const MAX_CHAT_LENGTH = 500;
 const MIN_CHAT_INTERVAL_MS = 500;
 const MAX_NAME_LENGTH = 32;
+const WAITING_ROOM_TIMEOUT_MS = 5 * 60 * 1000;
+const ROOM_DIRECTORY_PATH = '/rooms';
+const PENDING_BACKEND_SAVE_KEY = 'pending-backend-save';
+const BACKEND_SAVE_RETRY_DELAYS_MS = [
+  5_000,
+  30_000,
+  2 * 60_000,
+  5 * 60_000,
+  15 * 60_000,
+];
+
+const publicRoomDirectory = new Map<string, PublicRoomInfo>();
+
+interface VerifiedAuthUser {
+  id: string;
+  username?: string;
+}
+
+interface BackendGameData {
+  roomId: string;
+  players: {
+    black: { id: string; name: string; userId?: string };
+    white: { id: string; name: string; userId?: string };
+  };
+  gameState: RoomState['gameState'];
+  moves: unknown[];
+  result: {
+    winner: Player | null;
+    scores?: {
+      black: number;
+      white: number;
+    };
+    reason: 'resignation' | 'completion';
+  };
+  startedAt: Date;
+  completedAt: Date;
+}
+
+interface PendingBackendSave {
+  gameData: BackendGameData;
+  attempt: number;
+  updatedAt: string;
+}
+
+function getApiBaseUrl(): string {
+  return (process.env.API_URL || 'http://localhost:8080/api').replace(/\/$/, '');
+}
+
+function getBackendSaveRetryDelayMs(attempt: number): number {
+  return BACKEND_SAVE_RETRY_DELAYS_MS[
+    Math.min(Math.max(attempt - 1, 0), BACKEND_SAVE_RETRY_DELAYS_MS.length - 1)
+  ];
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+function cleanupExpiredPublicRooms(now = Date.now()) {
+  publicRoomDirectory.forEach((room, roomId) => {
+    if (Date.parse(room.waitingExpiresAt) <= now) {
+      publicRoomDirectory.delete(roomId);
+    }
+  });
+}
 
 export default class GoGameServer implements Party.Server {
   private roomState: RoomState;
@@ -48,7 +124,37 @@ export default class GoGameServer implements Party.Server {
       undoRequest: null,
       createdAt: new Date(),
       lastActivity: new Date(),
+      isPrivate: false,
+      waitingStartedAt: null,
+      waitingExpiresAt: null,
     };
+  }
+
+  async onStart() {
+    await this.ensurePendingBackendSaveAlarm();
+  }
+
+  async onRequest(req: Party.Request) {
+    const url = new URL(req.url);
+
+    if (req.method === 'OPTIONS') {
+      return jsonResponse(null, 204);
+    }
+
+    if (req.method === 'GET' && url.pathname.endsWith(ROOM_DIRECTORY_PATH)) {
+      cleanupExpiredPublicRooms();
+      const response: PublicRoomListResponse = {
+        rooms: Array.from(publicRoomDirectory.values()).sort(
+          (a, b) => Date.parse(b.lastActivity) - Date.parse(a.lastActivity)
+        ),
+        waitingTimeoutMs: WAITING_ROOM_TIMEOUT_MS,
+        generatedAt: new Date().toISOString(),
+      };
+
+      return jsonResponse(response);
+    }
+
+    return new Response('Not found', { status: 404 });
   }
 
   async onConnect(connection: Party.Connection, ctx: Party.ConnectionContext) {
@@ -102,6 +208,10 @@ export default class GoGameServer implements Party.Server {
     }
   }
 
+  async onAlarm() {
+    await this.retryPendingBackendSave();
+  }
+
   async onClose(connection: Party.Connection) {
     console.log(`[${this.room.id}] Connection closed: ${connection.id}`);
     
@@ -124,6 +234,8 @@ export default class GoGameServer implements Party.Server {
     // Remove from spectators if applicable
     this.roomState.spectators.delete(connection.id);
     this.lastChatAt.delete(connection.id);
+    this.roomState.lastActivity = new Date();
+    this.syncPublicRoomDirectory();
   }
 
   // ==========================================
@@ -131,32 +243,85 @@ export default class GoGameServer implements Party.Server {
   // ==========================================
 
   private async handleJoin(msg: ClientToServerMessage & { type: ClientMessageType.JOIN }, sender: Party.Connection) {
+    const verifiedUser = await this.verifyAuthToken(msg.authToken);
+    const requestedUserId = msg.playerInfo?.userId;
+
+    if (msg.authToken && !verifiedUser) {
+      this.sendError(sender, 'Invalid authentication token', ErrorCode.UNAUTHORIZED);
+      return;
+    }
+
+    if (requestedUserId && !verifiedUser) {
+      this.sendError(sender, 'Authentication required for user id', ErrorCode.UNAUTHORIZED);
+      return;
+    }
+
+    if (requestedUserId && verifiedUser && requestedUserId !== verifiedUser.id) {
+      this.sendError(sender, 'Authentication token does not match user id', ErrorCode.UNAUTHORIZED);
+      return;
+    }
+
+    const isFirstJoin = this.roomState.players.size === 0;
+
+    if (isFirstJoin) {
+      const now = new Date();
+      this.roomState.isPrivate = !!msg.roomConfig?.isPrivate;
+      this.roomState.waitingStartedAt = now;
+      this.roomState.waitingExpiresAt = new Date(now.getTime() + WAITING_ROOM_TIMEOUT_MS);
+    }
+
     const rawName =
       typeof msg.playerInfo?.name === 'string' ? msg.playerInfo.name.trim() : '';
     const name = (rawName || 'Player').slice(0, MAX_NAME_LENGTH);
+    const userId = verifiedUser?.id;
 
-    const playerInfo: PlayerInfo = {
-      id: sender.id,
-      name,
-      role: PlayerRole.SPECTATOR,
-      isConnected: true,
-      userId: msg.playerInfo?.userId,
-    };
+    const rejoinEntry = this.findRejoinCandidate(
+      sender.id,
+      userId
+    );
+    let playerInfo: PlayerInfo;
 
-    // Try to assign requested role
-    if (msg.requestedRole) {
-      if (this.canAssignRole(msg.requestedRole)) {
-        playerInfo.role = msg.requestedRole;
-        this.assignRole(sender.id, msg.requestedRole);
+    if (rejoinEntry) {
+      const [previousId, existingPlayer] = rejoinEntry;
+
+      playerInfo = {
+        ...existingPlayer,
+        id: sender.id,
+        name,
+        isConnected: true,
+        userId: userId ?? existingPlayer.userId,
+      };
+
+      if (previousId !== sender.id) {
+        this.roomState.players.delete(previousId);
+        this.replaceAssignedPlayerId(previousId, sender.id);
+        this.roomState.spectators.delete(previousId);
+        this.lastChatAt.delete(previousId);
       }
     } else {
-      // Auto-assign if spots available
-      if (!this.roomState.blackPlayerId) {
-        playerInfo.role = PlayerRole.BLACK_PLAYER;
-        this.assignRole(sender.id, PlayerRole.BLACK_PLAYER);
-      } else if (!this.roomState.whitePlayerId) {
-        playerInfo.role = PlayerRole.WHITE_PLAYER;
-        this.assignRole(sender.id, PlayerRole.WHITE_PLAYER);
+      playerInfo = {
+        id: sender.id,
+        name,
+        role: PlayerRole.SPECTATOR,
+        isConnected: true,
+        userId,
+      };
+
+      // Try to assign requested role
+      if (msg.requestedRole) {
+        if (this.canAssignRole(msg.requestedRole)) {
+          playerInfo.role = msg.requestedRole;
+          this.assignRole(sender.id, msg.requestedRole);
+        }
+      } else {
+        // Auto-assign if spots available
+        if (!this.roomState.blackPlayerId) {
+          playerInfo.role = PlayerRole.BLACK_PLAYER;
+          this.assignRole(sender.id, PlayerRole.BLACK_PLAYER);
+        } else if (!this.roomState.whitePlayerId) {
+          playerInfo.role = PlayerRole.WHITE_PLAYER;
+          this.assignRole(sender.id, PlayerRole.WHITE_PLAYER);
+        }
       }
     }
 
@@ -166,7 +331,11 @@ export default class GoGameServer implements Party.Server {
     // Add to spectators if not a player
     if (playerInfo.role === PlayerRole.SPECTATOR) {
       this.roomState.spectators.add(sender.id);
+    } else {
+      this.roomState.spectators.delete(sender.id);
     }
+
+    this.sendRoomInfo(sender);
 
     // Send role assignment
     this.send(sender, {
@@ -194,8 +363,11 @@ export default class GoGameServer implements Party.Server {
     // Start game if both players joined and game hasn't started
     if (this.roomState.blackPlayerId && this.roomState.whitePlayerId && 
         this.roomState.gameState.phase === GamePhase.PLAYING && 
-        this.roomState.gameState.moveHistory.length === 0) {
+        this.roomState.gameState.moveHistory.length === 0 &&
+        this.gameStartTime === null) {
       this.startGame();
+    } else {
+      this.syncPublicRoomDirectory();
     }
   }
 
@@ -308,9 +480,10 @@ export default class GoGameServer implements Party.Server {
       finalScore: this.roomState.gameState.score,
       timestamp: Date.now(),
     });
+    this.syncPublicRoomDirectory();
     
     // Save game to backend
-    await this.saveGameToBackend();
+    await this.saveCompletedGameToBackend();
   }
 
   private async handleMarkDead(msg: ClientToServerMessage & { type: ClientMessageType.MARK_DEAD }, sender: Party.Connection) {
@@ -366,9 +539,10 @@ export default class GoGameServer implements Party.Server {
       finalScore: this.roomState.gameState.score!,
       timestamp: Date.now(),
     });
+    this.syncPublicRoomDirectory();
     
     // Save game to backend
-    await this.saveGameToBackend();
+    await this.saveCompletedGameToBackend();
   }
 
   private async handleResumePlaying(sender: Party.Connection) {
@@ -457,6 +631,7 @@ export default class GoGameServer implements Party.Server {
       gameState: this.roomState.gameState,
       timestamp: Date.now(),
     });
+    this.syncPublicRoomDirectory();
   }
 
   private canAssignRole(role: PlayerRole): boolean {
@@ -480,6 +655,42 @@ export default class GoGameServer implements Party.Server {
       case PlayerRole.WHITE_PLAYER:
         this.roomState.whitePlayerId = playerId;
         break;
+    }
+  }
+
+  private findRejoinCandidate(
+    connectionId: string,
+    userId?: string
+  ): readonly [string, PlayerInfo] | null {
+    const existingConnectionPlayer = this.roomState.players.get(connectionId);
+    if (existingConnectionPlayer) {
+      return [connectionId, existingConnectionPlayer];
+    }
+
+    if (!userId) {
+      return null;
+    }
+
+    for (const [playerId, player] of this.roomState.players) {
+      if (
+        player.userId === userId &&
+        !player.isConnected &&
+        player.role !== PlayerRole.SPECTATOR
+      ) {
+        return [playerId, player];
+      }
+    }
+
+    return null;
+  }
+
+  private replaceAssignedPlayerId(previousId: string, nextId: string) {
+    if (this.roomState.blackPlayerId === previousId) {
+      this.roomState.blackPlayerId = nextId;
+    }
+
+    if (this.roomState.whitePlayerId === previousId) {
+      this.roomState.whitePlayerId = nextId;
     }
   }
 
@@ -510,7 +721,45 @@ export default class GoGameServer implements Party.Server {
       gameState: this.roomState.gameState,
       players: Array.from(this.roomState.players.values()),
       spectatorCount: this.roomState.spectators.size,
+      isPrivate: this.roomState.isPrivate,
+      waitingExpiresAt: this.roomState.waitingExpiresAt?.toISOString(),
       timestamp: Date.now(),
+    });
+  }
+
+  private syncPublicRoomDirectory() {
+    if (this.room.id === 'lobby') {
+      return;
+    }
+
+    cleanupExpiredPublicRooms();
+
+    const now = Date.now();
+    const waitingExpiresAt = this.roomState.waitingExpiresAt;
+    const activePlayers = Array.from(this.roomState.players.values()).filter(
+      (player) => player.isConnected && player.role !== PlayerRole.SPECTATOR
+    );
+    const isWaitingForOpponent =
+      activePlayers.length === 1 &&
+      this.roomState.gameState.phase === GamePhase.PLAYING &&
+      this.roomState.gameState.moveHistory.length === 0;
+    const isExpired = waitingExpiresAt
+      ? waitingExpiresAt.getTime() <= now
+      : true;
+
+    if (this.roomState.isPrivate || !isWaitingForOpponent || isExpired || !waitingExpiresAt) {
+      publicRoomDirectory.delete(this.room.id);
+      return;
+    }
+
+    publicRoomDirectory.set(this.room.id, {
+      id: this.room.id,
+      playerNames: activePlayers.map((player) => player.name),
+      playerCount: activePlayers.length,
+      spectatorCount: this.roomState.spectators.size,
+      createdAt: this.roomState.createdAt.toISOString(),
+      waitingExpiresAt: waitingExpiresAt.toISOString(),
+      lastActivity: this.roomState.lastActivity.toISOString(),
     });
   }
 
@@ -536,54 +785,132 @@ export default class GoGameServer implements Party.Server {
     });
   }
 
-  private async saveGameToBackend() {
+  private async verifyAuthToken(authToken?: string): Promise<VerifiedAuthUser | null> {
+    const token = typeof authToken === 'string' ? authToken.trim() : '';
+    if (!token) {
+      return null;
+    }
+
     try {
-      // Only save if we have both players and the game has ended
-      if (!this.gameStartTime || 
-          !this.roomState.blackPlayerId || 
-          !this.roomState.whitePlayerId ||
-          this.roomState.gameState.phase !== GamePhase.FINISHED) {
-        return;
+      const response = await fetch(`${getApiBaseUrl()}/auth/profile`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        return null;
       }
 
-      const blackPlayer = this.roomState.players.get(this.roomState.blackPlayerId);
-      const whitePlayer = this.roomState.players.get(this.roomState.whitePlayerId);
-      
-      if (!blackPlayer || !whitePlayer) return;
-
-      // Prepare game data
-      const gameData = {
-        roomId: this.room.id,
-        players: {
-          black: {
-            id: this.roomState.blackPlayerId,
-            name: blackPlayer.name,
-            userId: blackPlayer.userId
-          },
-          white: {
-            id: this.roomState.whitePlayerId,
-            name: whitePlayer.name,
-            userId: whitePlayer.userId
-          }
-        },
-        gameState: this.roomState.gameState,
-        moves: this.moves,
-        result: {
-          winner: (this.roomState.gameState as any).winner || null,
-          scores: this.roomState.gameState.score,
-          reason: (this.roomState.gameState as any).resignedPlayer ? 'resignation' : 'completion'
-        },
-        startedAt: this.gameStartTime,
-        completedAt: new Date()
+      const payload = (await response.json()) as {
+        data?: {
+          user?: {
+            id?: unknown;
+            _id?: unknown;
+            username?: unknown;
+          };
+        };
       };
+      const user = payload.data?.user;
+      const id =
+        typeof user?.id === 'string'
+          ? user.id
+          : typeof user?._id === 'string'
+            ? user._id
+            : null;
 
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        username: typeof user?.username === 'string' ? user.username : undefined,
+      };
+    } catch (error) {
+      console.error(`[${this.room.id}] Failed to verify auth token:`, error);
+      return null;
+    }
+  }
+
+  private async saveCompletedGameToBackend() {
+    const gameData = this.buildCompletedGamePayload();
+
+    if (!gameData) {
+      return;
+    }
+
+    const saveResult = await this.sendGameToBackend(gameData);
+
+    if (saveResult) {
+      await this.clearPendingBackendSave();
+      return;
+    }
+
+    await this.queueBackendSaveRetry(gameData, 1);
+    this.broadcastBackendSaveFailure();
+  }
+
+  private buildCompletedGamePayload(): BackendGameData | null {
+    if (
+      !this.gameStartTime ||
+      !this.roomState.blackPlayerId ||
+      !this.roomState.whitePlayerId ||
+      this.roomState.gameState.phase !== GamePhase.FINISHED
+    ) {
+      return null;
+    }
+
+    const blackPlayer = this.roomState.players.get(this.roomState.blackPlayerId);
+    const whitePlayer = this.roomState.players.get(this.roomState.whitePlayerId);
+
+    if (!blackPlayer || !whitePlayer) return null;
+
+    const finalScore = this.roomState.gameState.score;
+    const resultReason =
+      this.roomState.gameState.lastMove?.type === MoveType.RESIGN
+        ? 'resignation'
+        : 'completion';
+
+    return {
+      roomId: this.room.id,
+      players: {
+        black: {
+          id: this.roomState.blackPlayerId,
+          name: blackPlayer.name,
+          userId: blackPlayer.userId,
+        },
+        white: {
+          id: this.roomState.whitePlayerId,
+          name: whitePlayer.name,
+          userId: whitePlayer.userId,
+        },
+      },
+      gameState: this.roomState.gameState,
+      moves: this.moves,
+      result: {
+        winner: finalScore?.winner ?? null,
+        scores: finalScore
+          ? {
+              black: finalScore.black.total,
+              white: finalScore.white.total,
+            }
+          : undefined,
+        reason: resultReason,
+      },
+      startedAt: this.gameStartTime,
+      completedAt: new Date(),
+    };
+  }
+
+  private async sendGameToBackend(gameData: BackendGameData): Promise<boolean> {
+    try {
       // Send to backend API. The webhook secret must match the API's
       // (config.partykitWebhookSecret); the dev fallback is shared here.
-      const apiUrl = process.env.API_URL || 'http://localhost:8080/api';
       const webhookSecret =
         process.env.PARTYKIT_WEBHOOK_SECRET || 'dev-partykit-webhook-secret';
       
-      const response = await fetch(`${apiUrl}/game/webhook/partykit`, {
+      const response = await fetch(`${getApiBaseUrl()}/game/webhook/partykit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -594,11 +921,82 @@ export default class GoGameServer implements Party.Server {
 
       if (!response.ok) {
         console.error('[PartyKit] Failed to save game to backend:', await response.text());
+        return false;
       } else {
         console.log('[PartyKit] Game saved to backend successfully');
+        return true;
       }
     } catch (error) {
       console.error('[PartyKit] Error saving game to backend:', error);
+      return false;
     }
+  }
+
+  private async retryPendingBackendSave() {
+    const pending = await this.room.storage.get<PendingBackendSave>(
+      PENDING_BACKEND_SAVE_KEY
+    );
+
+    if (!pending) {
+      return;
+    }
+
+    const saveResult = await this.sendGameToBackend(pending.gameData);
+
+    if (saveResult) {
+      await this.clearPendingBackendSave();
+      return;
+    }
+
+    await this.queueBackendSaveRetry(
+      pending.gameData,
+      pending.attempt + 1
+    );
+  }
+
+  private async queueBackendSaveRetry(
+    gameData: BackendGameData,
+    attempt: number
+  ) {
+    const retryAt = Date.now() + getBackendSaveRetryDelayMs(attempt);
+
+    await this.room.storage.put<PendingBackendSave>(PENDING_BACKEND_SAVE_KEY, {
+      gameData,
+      attempt,
+      updatedAt: new Date().toISOString(),
+    });
+    await this.room.storage.setAlarm(retryAt);
+  }
+
+  private async clearPendingBackendSave() {
+    await this.room.storage.delete(PENDING_BACKEND_SAVE_KEY);
+    await this.room.storage.deleteAlarm();
+  }
+
+  private async ensurePendingBackendSaveAlarm() {
+    const pending = await this.room.storage.get<PendingBackendSave>(
+      PENDING_BACKEND_SAVE_KEY
+    );
+
+    if (!pending) {
+      return;
+    }
+
+    const alarm = await this.room.storage.getAlarm();
+    if (alarm === null) {
+      await this.room.storage.setAlarm(
+        Date.now() + getBackendSaveRetryDelayMs(pending.attempt + 1)
+      );
+    }
+  }
+
+  private broadcastBackendSaveFailure() {
+    this.broadcast({
+      type: ServerMessageType.ERROR,
+      error:
+        'Game completed, but saving the result failed. The result may not appear in history yet.',
+      code: ErrorCode.BACKEND_SAVE_FAILED,
+      timestamp: Date.now(),
+    });
   }
 }

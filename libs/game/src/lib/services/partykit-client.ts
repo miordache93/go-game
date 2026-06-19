@@ -2,6 +2,9 @@ import PartySocket from 'partysocket';
 import { 
   ClientToServerMessage, 
   ServerToClientMessage,
+  RoomInfoMessage,
+  PublicRoomListResponse,
+  PublicRoomInfo,
   ClientMessageType,
   ServerMessageType,
   PlayerRole,
@@ -12,11 +15,14 @@ import { GameState, Position, Player } from '@go-game/types';
 export interface PartyKitClientConfig {
   roomId: string;
   playerName: string;
+  clientId?: string;
   userId?: string;
   authToken?: string;
+  isPrivate?: boolean;
   onConnect?: () => void;
   onDisconnect?: () => void;
   onError?: (error: string, code?: string) => void;
+  onRoomInfo?: (roomInfo: RoomInfoMessage) => void;
   onGameStateUpdate?: (gameState: GameState, players: PlayerInfo[]) => void;
   onMoveMade?: (move: any, gameState: GameState, capturedStones?: Position[]) => void;
   onInvalidMove?: (reason: string, position?: Position) => void;
@@ -31,6 +37,57 @@ export interface PartyKitClientConfig {
   onChatMessage?: (playerId: string, playerName: string, message: string) => void;
 }
 
+export function getPartyKitHost(): string {
+  return process.env.NODE_ENV === 'production'
+    ? 'go-game-server.partykit.dev'
+    : 'localhost:1999';
+}
+
+const CLIENT_ID_STORAGE_PREFIX = 'go-game-partykit-client-id';
+
+function createClientId(): string {
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `client-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  );
+}
+
+function getStableClientId(roomId: string): string {
+  const storageKey = `${CLIENT_ID_STORAGE_PREFIX}:${roomId}`;
+
+  if (typeof window === 'undefined') {
+    return createClientId();
+  }
+
+  try {
+    const existingClientId = window.localStorage.getItem(storageKey);
+    if (existingClientId) {
+      return existingClientId;
+    }
+
+    const clientId = createClientId();
+    window.localStorage.setItem(storageKey, clientId);
+    return clientId;
+  } catch {
+    return createClientId();
+  }
+}
+
+export async function fetchAvailableRooms(): Promise<PublicRoomInfo[]> {
+  const response = await PartySocket.fetch({
+    host: getPartyKitHost(),
+    room: 'lobby',
+    path: 'rooms',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Unable to load rooms (${response.status})`);
+  }
+
+  const data = (await response.json()) as PublicRoomListResponse;
+  return data.rooms;
+}
+
 export class PartyKitClient {
   private socket: PartySocket | null = null;
   private config: PartyKitClientConfig;
@@ -42,14 +99,13 @@ export class PartyKitClient {
   }
 
   connect(): void {
-    const host = process.env.NODE_ENV === 'production' 
-      ? 'go-game-server.partykit.dev'
-      : 'localhost:1999';
+    const host = getPartyKitHost();
+    const clientId = this.config.clientId ?? getStableClientId(this.config.roomId);
 
     this.socket = new PartySocket({
       host,
       room: this.config.roomId,
-      id: this.config.playerName,
+      id: clientId,
     });
 
     this.socket.addEventListener('open', () => {
@@ -60,11 +116,14 @@ export class PartyKitClient {
       this.send({
         type: ClientMessageType.JOIN,
         playerInfo: {
-          id: this.config.playerName,
+          id: clientId,
           name: this.config.playerName,
           userId: this.config.userId,
         },
         authToken: this.config.authToken,
+        roomConfig: {
+          isPrivate: this.config.isPrivate,
+        },
         timestamp: Date.now(),
       });
     });
@@ -170,6 +229,7 @@ export class PartyKitClient {
 
       case ServerMessageType.ROOM_INFO:
         // Initial room info, update game state
+        this.config.onRoomInfo?.(message);
         this.config.onGameStateUpdate?.(message.gameState, message.players);
         break;
     }

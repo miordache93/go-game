@@ -1159,6 +1159,70 @@ describe('GoGameServer', () => {
       
       // Should not throw even if backend save fails
       await expect(server.onMessage(JSON.stringify(resignMessage), mockConnection1)).resolves.not.toThrow();
+
+      expect(sentMessages.get('player1')).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: ServerMessageType.ERROR,
+            code: ErrorCode.BACKEND_SAVE_FAILED,
+          }),
+        ])
+      );
+      expect(sentMessages.get('player2')).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: ServerMessageType.ERROR,
+            code: ErrorCode.BACKEND_SAVE_FAILED,
+          }),
+        ])
+      );
+    });
+
+    it('should retry a queued backend save on alarm and clear it after success', async () => {
+      await server.onConnect(mockConnection1, {} as any);
+      await server.onConnect(mockConnection2, {} as any);
+
+      const joinMessage1: ClientToServerMessage = {
+        type: ClientMessageType.JOIN,
+        timestamp: Date.now(),
+        playerInfo: { id: 'player1', name: 'Black Player' },
+      };
+      await server.onMessage(JSON.stringify(joinMessage1), mockConnection1);
+
+      const joinMessage2: ClientToServerMessage = {
+        type: ClientMessageType.JOIN,
+        timestamp: Date.now(),
+        playerInfo: { id: 'player2', name: 'White Player' },
+      };
+      await server.onMessage(JSON.stringify(joinMessage2), mockConnection2);
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        text: () => Promise.resolve('Server Error'),
+      });
+
+      const resignMessage: ClientToServerMessage = {
+        type: ClientMessageType.RESIGN,
+        timestamp: Date.now(),
+      };
+
+      await server.onMessage(JSON.stringify(resignMessage), mockConnection1);
+
+      expect(await mockRoom.storage.get('pending-backend-save')).toMatchObject({
+        attempt: 1,
+      });
+      expect(await mockRoom.storage.getAlarm()).toEqual(expect.any(Number));
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve('OK'),
+      });
+
+      await server.onAlarm();
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(await mockRoom.storage.get('pending-backend-save')).toBeUndefined();
+      expect(await mockRoom.storage.getAlarm()).toBeNull();
     });
   });
 

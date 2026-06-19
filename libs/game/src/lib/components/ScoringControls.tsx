@@ -61,15 +61,15 @@ export const ScoringControls: React.FC<ScoringControlsProps> = ({
   };
 
   return (
-    <div className={styles.scoringControls}>
-      <h3 className={styles.scoringTitle}>Scoring Phase</h3>
+    <div className={`${styles.scoringControls} scoring-controls`}>
+      <h3 className={`${styles.scoringTitle} scoring-title`}>Scoring Phase</h3>
 
       <div className={styles.scoringInstructions}>
         <p>Click on stones to mark them as dead.</p>
         <p>Dead stones will be added to captures.</p>
       </div>
 
-      <div className={styles.scoreDisplay}>
+      <div className={`${styles.scoreDisplay} score-display`}>
         <div className={styles.playerScore}>
           <h4>
             <span className={styles.blackStone}>●</span> Black
@@ -87,9 +87,10 @@ export const ScoringControls: React.FC<ScoringControlsProps> = ({
 
       <div className={styles.winnerDisplay}>{getWinnerText()}</div>
 
-      <div className={styles.scoringActions}>
+      <div className={`${styles.scoringActions} scoring-actions`}>
         <button
-          className={`${styles.button} ${styles.primaryButton}`}
+          type="button"
+          className={`${styles.button} ${styles.primaryButton} primary-button`}
           onClick={onFinalize}
           disabled={disabled}
         >
@@ -97,7 +98,8 @@ export const ScoringControls: React.FC<ScoringControlsProps> = ({
         </button>
 
         <button
-          className={`${styles.button} ${styles.secondaryButton}`}
+          type="button"
+          className={`${styles.button} ${styles.secondaryButton} secondary-button`}
           onClick={onResume}
           disabled={disabled}
         >

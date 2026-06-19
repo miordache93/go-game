@@ -73,6 +73,9 @@ export interface JoinMessage extends ClientMessage {
   };
   requestedRole?: PlayerRole;
   authToken?: string;
+  roomConfig?: {
+    isPrivate?: boolean;
+  };
 }
 
 export interface MakeMoveMessage extends ClientMessage {
@@ -273,6 +276,8 @@ export interface RoomInfoMessage extends ServerMessage {
   gameState: GameState;
   players: PlayerInfo[];
   spectatorCount: number;
+  isPrivate: boolean;
+  waitingExpiresAt?: string;
 }
 
 export type ServerToClientMessage = 
@@ -312,6 +317,25 @@ export interface RoomState {
   } | null;
   createdAt: Date;
   lastActivity: Date;
+  isPrivate: boolean;
+  waitingStartedAt: Date | null;
+  waitingExpiresAt: Date | null;
+}
+
+export interface PublicRoomInfo {
+  id: string;
+  playerNames: string[];
+  playerCount: number;
+  spectatorCount: number;
+  createdAt: string;
+  waitingExpiresAt: string;
+  lastActivity: string;
+}
+
+export interface PublicRoomListResponse {
+  rooms: PublicRoomInfo[];
+  waitingTimeoutMs: number;
+  generatedAt: string;
 }
 
 export interface RoomConfig {
@@ -370,5 +394,6 @@ export enum ErrorCode {
   GAME_NOT_STARTED = 'GAME_NOT_STARTED',
   GAME_ALREADY_ENDED = 'GAME_ALREADY_ENDED',
   UNAUTHORIZED = 'UNAUTHORIZED',
+  BACKEND_SAVE_FAILED = 'BACKEND_SAVE_FAILED',
   INVALID_MESSAGE = 'INVALID_MESSAGE',
 }

@@ -1,16 +1,31 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Container, Title, Text, Button, Badge, Group, Stack, Card, TextInput, Modal } from '@mantine/core';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import {
+  Alert,
+  Checkbox,
+  Container,
+  Title,
+  Text,
+  Button,
+  Badge,
+  Group,
+  Stack,
+  Card,
+  TextInput,
+  Modal,
+  Divider,
+  Loader,
+} from '@mantine/core';
 import { useElementSize, useViewportSize } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { GoBoard } from './GoBoard';
 import { GameControls } from './GameControls';
 import { ScoringControls } from './ScoringControls';
-import { PartyKitClient } from '../services/partykit-client';
+import { PartyKitClient, fetchAvailableRooms } from '../services/partykit-client';
 import { apiClient } from '../services/api-client';
 import { useAuthStore } from '../stores/auth-store';
 import { GameState, Position, Player, GamePhase } from '@go-game/types';
-import { PlayerInfo, PlayerRole, createRoomId } from '@go-game/partykit-protocol';
-import { IconPlus, IconLogin } from '@tabler/icons-react';
+import { PlayerInfo, PlayerRole, PublicRoomInfo, createRoomId } from '@go-game/partykit-protocol';
+import { IconCopy, IconLink, IconList, IconLogin, IconLock, IconPlus, IconRefresh } from '@tabler/icons-react';
 
 interface MultiplayerGameProps {
   roomId?: string;
@@ -20,6 +35,51 @@ interface MultiplayerGameProps {
 
 type ModalMode = 'menu' | 'create' | 'join';
 
+const ROOM_LIST_REFRESH_MS = 15_000;
+
+function formatTimeRemaining(expiresAt?: string): string {
+  if (!expiresAt) return '5:00';
+
+  const remainingMs = Math.max(0, Date.parse(expiresAt) - Date.now());
+  const minutes = Math.floor(remainingMs / 60_000);
+  const seconds = Math.floor((remainingMs % 60_000) / 1000);
+
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function getInviteLink(roomId: string): string {
+  if (typeof window === 'undefined') {
+    return roomId;
+  }
+
+  const url = new URL(window.location.href);
+  url.searchParams.set('room', roomId);
+  return url.toString();
+}
+
+function parseRoomJoinInput(value: string): string {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return '';
+  }
+
+  try {
+    const baseUrl =
+      typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
+    return new URL(trimmedValue, baseUrl).searchParams.get('room')?.trim() || trimmedValue;
+  } catch {
+    return trimmedValue;
+  }
+}
+
+async function copyTextToClipboard(value: string): Promise<void> {
+  if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+    throw new Error('Clipboard API is unavailable');
+  }
+
+  await navigator.clipboard.writeText(value);
+}
+
 export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlayerName, onBack }: MultiplayerGameProps) {
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
@@ -28,6 +88,15 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
   const [roomId, setRoomId] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [joinRoomId, setJoinRoomId] = useState('');
+  const [isPrivateRoom, setIsPrivateRoom] = useState(false);
+  const [currentRoomIsPrivate, setCurrentRoomIsPrivate] = useState(false);
+  const [currentRoomWaitingExpiresAt, setCurrentRoomWaitingExpiresAt] = useState<string>();
+  const [availableRooms, setAvailableRooms] = useState<PublicRoomInfo[]>([]);
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  const [roomListError, setRoomListError] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const hasAppliedInitialRoom = useRef(false);
+  const hasAutoConnected = useRef(false);
   
   // Game state
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -50,6 +119,24 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
       )
     : 500;
 
+  const inviteLink = useMemo(() => (roomId ? getInviteLink(roomId) : ''), [roomId]);
+
+  const loadAvailableRooms = useCallback(async () => {
+    setIsLoadingRooms(true);
+    setRoomListError(null);
+
+    try {
+      const rooms = await fetchAvailableRooms();
+      setAvailableRooms(rooms);
+    } catch (error) {
+      setRoomListError(
+        error instanceof Error ? error.message : 'Unable to load rooms'
+      );
+    } finally {
+      setIsLoadingRooms(false);
+    }
+  }, []);
+
   // Disconnect and cleanup
   const disconnect = useCallback(() => {
     if (client) {
@@ -60,11 +147,17 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
       setPlayers([]);
       setMyRole(PlayerRole.SPECTATOR);
       setDeadStones(new Set());
+      setCurrentRoomIsPrivate(false);
+      setCurrentRoomWaitingExpiresAt(undefined);
     }
   }, [client]);
 
   // Connect to PartyKit server
-  const connectToGame = useCallback((roomToJoin: string, name: string) => {
+  const connectToGame = useCallback((
+    roomToJoin: string,
+    name: string,
+    options?: { isPrivate?: boolean }
+  ) => {
     if (!roomToJoin || !name) return;
 
     // Disconnect existing connection
@@ -75,6 +168,11 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
       playerName: name,
       userId: authUser?.id,
       authToken: apiClient.getToken() ?? undefined,
+      isPrivate: options?.isPrivate,
+      onRoomInfo: (roomInfo) => {
+        setCurrentRoomIsPrivate(roomInfo.isPrivate);
+        setCurrentRoomWaitingExpiresAt(roomInfo.waitingExpiresAt);
+      },
       
       onConnect: () => {
         setIsConnected(true);
@@ -207,8 +305,44 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
     setClient(partyClient);
     setRoomId(roomToJoin);
     setPlayerName(name);
+    setCurrentRoomIsPrivate(!!options?.isPrivate);
+    setCurrentRoomWaitingExpiresAt(undefined);
     setShowModal(false);
   }, [disconnect, players, authUser]);
+
+  useEffect(() => {
+    if (initialPlayerName) {
+      setPlayerName(initialPlayerName);
+    }
+  }, [initialPlayerName]);
+
+  useEffect(() => {
+    if (!initialRoomId || hasAppliedInitialRoom.current) return;
+
+    hasAppliedInitialRoom.current = true;
+    setJoinRoomId(initialRoomId);
+    setModalMode('join');
+    setShowModal(true);
+
+    if (initialPlayerName && !hasAutoConnected.current) {
+      hasAutoConnected.current = true;
+      connectToGame(initialRoomId, initialPlayerName);
+    }
+  }, [connectToGame, initialPlayerName, initialRoomId]);
+
+  useEffect(() => {
+    if (!showModal || modalMode !== 'menu') return;
+
+    loadAvailableRooms();
+    const refreshId = window.setInterval(loadAvailableRooms, ROOM_LIST_REFRESH_MS);
+
+    return () => window.clearInterval(refreshId);
+  }, [loadAvailableRooms, modalMode, showModal]);
+
+  useEffect(() => {
+    const tickId = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(tickId);
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -296,6 +430,7 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
     setShowModal(true);
     setRoomId('');
     setJoinRoomId('');
+    setIsPrivateRoom(false);
   }, [disconnect]);
 
   const handleLeaveRoom = useCallback(() => {
@@ -310,20 +445,31 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
 
   // Modal content based on mode
   const renderModalContent = () => {
+    const visibleRooms = availableRooms.filter(
+      (room) => Date.parse(room.waitingExpiresAt) > now
+    );
+
     switch (modalMode) {
       case 'menu':
         return (
-          <Stack>
+          <Stack gap="md">
             <Text size="sm" color="dimmed" ta="center">
-              Choose an option to start playing
+              Create a room, join by link, or pick a public room that is waiting for an opponent.
             </Text>
+            <TextInput
+              label="Your Name"
+              placeholder="Enter your name"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.currentTarget.value)}
+              required
+            />
             <Button
               fullWidth
               leftSection={<IconPlus size={20} />}
               onClick={() => setModalMode('create')}
               size="lg"
             >
-              Create New Room
+              Create Room
             </Button>
             <Button
               fullWidth
@@ -332,8 +478,71 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
               variant="outline"
               size="lg"
             >
-              Join Existing Room
+              Enter Room ID
             </Button>
+            <Divider label="Available public rooms" labelPosition="center" />
+            <Group justify="space-between" align="center">
+              <Group gap="xs">
+                <IconList size={18} />
+                <Text size="sm" fw={600}>Rooms waiting for a player</Text>
+              </Group>
+              <Button
+                size="xs"
+                variant="subtle"
+                leftSection={<IconRefresh size={14} />}
+                loading={isLoadingRooms}
+                onClick={loadAvailableRooms}
+              >
+                Refresh
+              </Button>
+            </Group>
+            {roomListError && (
+              <Alert color="red" p="sm">
+                <Text size="sm">{roomListError}</Text>
+              </Alert>
+            )}
+            {isLoadingRooms && visibleRooms.length === 0 ? (
+              <Group justify="center" py="sm">
+                <Loader size="sm" />
+              </Group>
+            ) : visibleRooms.length === 0 ? (
+              <Text size="sm" c="dimmed" ta="center">
+                No public rooms are waiting right now.
+              </Text>
+            ) : (
+              <Stack gap="xs">
+                {visibleRooms.map((room) => (
+                  <Card key={room.id} withBorder p="sm">
+                    <Group justify="space-between" align="center" wrap="nowrap">
+                      <Stack gap={2} style={{ minWidth: 0 }}>
+                        <Text size="sm" fw={600} truncate>
+                          {room.playerNames[0] || 'Player'} is waiting
+                        </Text>
+                        <Text size="xs" c="dimmed" truncate>
+                          {room.id}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          Expires in {formatTimeRemaining(room.waitingExpiresAt)}
+                        </Text>
+                      </Stack>
+                      <Button
+                        size="xs"
+                        onClick={() => {
+                          if (playerName.trim()) {
+                            connectToGame(room.id, playerName.trim());
+                          } else {
+                            setJoinRoomId(room.id);
+                            setModalMode('join');
+                          }
+                        }}
+                      >
+                        Join
+                      </Button>
+                    </Group>
+                  </Card>
+                ))}
+              </Stack>
+            )}
             {onBack && (
               <Button
                 fullWidth
@@ -354,13 +563,27 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
               label="Your Name"
               placeholder="Enter your name"
               value={playerName}
-              onChange={(e) => setPlayerName((e.currentTarget as any).value)}
+              onChange={(e) => setPlayerName(e.currentTarget.value)}
               required
               autoFocus
             />
-            <Text size="xs" color="dimmed">
-              A room ID will be generated automatically
-            </Text>
+            <Checkbox
+              label="Private room"
+              description="Private rooms are hidden from the public list and can only be joined with an invite link or room ID."
+              checked={isPrivateRoom}
+              onChange={(e) => setIsPrivateRoom(e.currentTarget.checked)}
+            />
+            <Alert
+              color={isPrivateRoom ? 'gray' : 'blue'}
+              icon={isPrivateRoom ? <IconLock size={16} /> : <IconList size={16} />}
+              p="sm"
+            >
+              <Text size="sm">
+                {isPrivateRoom
+                  ? 'Only people with the invite link or room ID can join.'
+                  : 'Public rooms appear in the room list for 5 minutes while waiting for a second player.'}
+              </Text>
+            </Alert>
             <Group grow>
               <Button
                 variant="subtle"
@@ -371,9 +594,9 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
               <Button
                 onClick={() => {
                   const newRoomId = createRoomId();
-                  connectToGame(newRoomId, playerName);
+                  connectToGame(newRoomId, playerName.trim(), { isPrivate: isPrivateRoom });
                 }}
-                disabled={!playerName}
+                disabled={!playerName.trim()}
               >
                 Create Room
               </Button>
@@ -388,14 +611,14 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
               label="Your Name"
               placeholder="Enter your name"
               value={playerName}
-              onChange={(e) => setPlayerName((e.currentTarget as any).value)}
+              onChange={(e) => setPlayerName(e.currentTarget.value)}
               required
             />
             <TextInput
               label="Room ID"
-              placeholder="Enter room ID to join"
+              placeholder="Enter room ID or invite link"
               value={joinRoomId}
-              onChange={(e) => setJoinRoomId((e.currentTarget as any).value)}
+              onChange={(e) => setJoinRoomId(e.currentTarget.value)}
               required
             />
             <Group grow>
@@ -406,8 +629,8 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
                 Back
               </Button>
               <Button
-                onClick={() => connectToGame(joinRoomId, playerName)}
-                disabled={!playerName || !joinRoomId}
+                onClick={() => connectToGame(parseRoomJoinInput(joinRoomId), playerName.trim())}
+                disabled={!playerName.trim() || !joinRoomId.trim()}
               >
                 Join Room
               </Button>
@@ -588,25 +811,62 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
 
           {/* Room info for sharing */}
           <Card shadow="xs" p="sm">
-            <Text size="sm" fw={500} mb="xs">Room ID:</Text>
+            <Group justify="space-between" mb="xs">
+              <Text size="sm" fw={500}>Invite players</Text>
+              <Badge color={currentRoomIsPrivate ? 'gray' : 'blue'} variant="light">
+                {currentRoomIsPrivate ? 'Private' : 'Public'}
+              </Badge>
+            </Group>
+            {!currentRoomIsPrivate && currentRoomWaitingExpiresAt && players.filter(p => p.role !== PlayerRole.SPECTATOR).length < 2 && (
+              <Text size="xs" c="dimmed" mb="xs">
+                Public listing expires in {formatTimeRemaining(currentRoomWaitingExpiresAt)}
+              </Text>
+            )}
+            <Text size="xs" c="dimmed" mb={4}>Invite link</Text>
             <Text size="xs" c="dimmed" style={{ wordBreak: 'break-all', fontFamily: 'monospace' }}>
-              {roomId}
+              {inviteLink}
             </Text>
             <Button
               size="sm"
               variant="filled"
               mt="sm"
               fullWidth
-              onClick={() => {
+              leftSection={<IconLink size={16} />}
+              onClick={async () => {
                 try {
-                  // @ts-ignore - clipboard API may not be available
-                  navigator?.clipboard?.writeText(roomId);
+                  await copyTextToClipboard(inviteLink);
                   notifications.show({
                     title: '✅ Copied!',
-                    message: 'Room ID copied - share it with your friend',
+                    message: 'Invite link copied',
                     color: 'green',
                   });
-                } catch (e) {
+                } catch {
+                  notifications.show({
+                    title: 'Invite link',
+                    message: inviteLink,
+                    color: 'blue',
+                    autoClose: false,
+                  });
+                }
+              }}
+            >
+              Copy Invite Link
+            </Button>
+            <Button
+              size="xs"
+              variant="subtle"
+              mt="xs"
+              fullWidth
+              leftSection={<IconCopy size={14} />}
+              onClick={async () => {
+                try {
+                  await copyTextToClipboard(roomId);
+                  notifications.show({
+                    title: '✅ Copied!',
+                    message: 'Room ID copied',
+                    color: 'green',
+                  });
+                } catch {
                   notifications.show({
                     title: 'Room ID',
                     message: roomId,
@@ -619,7 +879,7 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
               Copy Room ID
             </Button>
             <Text size="xs" c="dimmed" mt="xs">
-              Share this ID with others to join
+              Anyone with the link can join this room.
             </Text>
           </Card>
         </Stack>

@@ -57,8 +57,8 @@ describe('AuthForm Component', () => {
     it('renders the auth form with login tab active by default', () => {
       renderWithProviders(<AuthForm />);
       
-      expect(screen.getByText('Login')).toBeInTheDocument();
-      expect(screen.getByText('Register')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Login' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Register' })).toBeInTheDocument();
       expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /login/i })).toBeInTheDocument();

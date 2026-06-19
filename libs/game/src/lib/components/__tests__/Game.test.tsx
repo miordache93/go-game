@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from './test-utils';
 import { Game } from '../Game';
-import { BoardSize, GamePhase, Player } from '@go-game/types';
+import { BoardSize, GamePhase, MoveType, Player } from '@go-game/types';
 import * as gameModule from '../../game';
 import * as gameFactoryModule from '../../game-factory';
 
@@ -168,7 +168,34 @@ describe('Game Component', () => {
       
       expect(mockGameEngine.makeMove).toHaveBeenCalledWith(
         Player.BLACK,
-        expect.any(Number), // MoveType.PLACE_STONE
+        MoveType.PLACE_STONE,
+        { x: 0, y: 0 }
+      );
+    });
+
+    it('does not allow human placement when AI is thinking as white', async () => {
+      mockGameEngine.getGameState.mockReturnValueOnce({
+        board: Array(9).fill(null).map(() => Array(9).fill(null)),
+        boardSize: BoardSize.SMALL,
+        currentPlayer: Player.WHITE,
+        phase: GamePhase.PLAYING,
+        lastMove: null,
+        capturedStones: { black: [], white: [] },
+        score: null,
+        moveHistory: [],
+      });
+      
+      render(<Game />);
+      
+      const aiModeButton = screen.getByText('AI Opponent');
+      fireEvent.click(aiModeButton);
+
+      const board = screen.getByTestId('mock-go-board');
+      fireEvent.click(board);
+
+      expect(mockGameEngine.makeMove).not.toHaveBeenCalledWith(
+        Player.WHITE,
+        MoveType.PLACE_STONE,
         { x: 0, y: 0 }
       );
     });
@@ -244,7 +271,7 @@ describe('Game Component', () => {
       
       expect(mockGameEngine.makeMove).toHaveBeenCalledWith(
         Player.BLACK,
-        expect.any(Number) // MoveType.PASS
+        MoveType.PASS
       );
     });
 
@@ -258,7 +285,7 @@ describe('Game Component', () => {
       
       expect(mockGameEngine.makeMove).toHaveBeenCalledWith(
         Player.BLACK,
-        expect.any(Number) // MoveType.RESIGN
+        MoveType.RESIGN
       );
     });
 

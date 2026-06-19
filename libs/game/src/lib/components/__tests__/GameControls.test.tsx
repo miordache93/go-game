@@ -192,7 +192,7 @@ describe('GameControls Component', () => {
     it('shows finished game instructions', () => {
       render(<GameControls {...defaultProps} gamePhase={GamePhase.FINISHED} />);
       expect(screen.getByText(/game completed/i)).toBeInTheDocument();
-      expect(screen.getByText(/start new game/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /start new game/i })).toBeInTheDocument();
     });
 
     it('does not show phase instructions during playing phase', () => {

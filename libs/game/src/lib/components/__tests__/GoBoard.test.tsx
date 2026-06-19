@@ -14,7 +14,7 @@ vi.mock('react-konva', () => ({
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
         onTouchEnd={onTap}
-        style={{ width: props.width, height: props.height }}
+        style={{ width: props.width, height: props.height, ...props.style }}
       >
         {children}
       </div>

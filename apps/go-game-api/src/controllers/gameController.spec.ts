@@ -514,7 +514,7 @@ describe('GameController', () => {
 
       const result = await gameController.savePartykitGame(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         error: 'Save failed',

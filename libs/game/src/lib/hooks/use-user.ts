@@ -24,10 +24,11 @@ export function useUserProfile() {
 }
 
 // Fetch user statistics
-export function useUserStats(userId?: string) {
+export function useUserStats(userId?: string, enabled = true) {
   return useQuery({
     queryKey: userKeys.stats(userId),
     queryFn: () => apiClient.getUserStats(userId),
+    enabled,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }

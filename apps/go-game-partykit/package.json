@@ -75,7 +75,7 @@
       "vitest": {
         "executor": "@nx/vite:test",
         "outputs": [
-          "coverage/apps/go-game-partykit"
+          "{workspaceRoot}/coverage/apps/go-game-partykit"
         ],
         "options": {
           "configFile": "apps/go-game-partykit/vitest.config.ts",
@@ -85,7 +85,7 @@
       "vitest:run": {
         "executor": "@nx/vite:test",
         "outputs": [
-          "coverage/apps/go-game-partykit"
+          "{workspaceRoot}/coverage/apps/go-game-partykit"
         ],
         "options": {
           "configFile": "apps/go-game-partykit/vitest.config.ts",
@@ -96,7 +96,7 @@
       "vitest:coverage": {
         "executor": "@nx/vite:test",
         "outputs": [
-          "coverage/apps/go-game-partykit"
+          "{workspaceRoot}/coverage/apps/go-game-partykit"
         ],
         "options": {
           "configFile": "apps/go-game-partykit/vitest.config.ts",

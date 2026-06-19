@@ -4,7 +4,7 @@
     "outDir": "dist",
     "module": "esnext",
     "lib": ["ES2022", "DOM"],
-    "types": ["node"],
+    "types": ["node", "@nx/react/typings/cssmodule.d.ts"],
     "rootDir": "src",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",

@@ -193,7 +193,7 @@ export class PositionGenerator {
     const dx = Math.sign(to.x - from.x);
     const dy = Math.sign(to.y - from.y);
     
-    let current = { ...from };
+    const current = { ...from };
     
     while (!positionsEqual(current, to)) {
       positions.push({ ...current });

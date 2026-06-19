@@ -144,7 +144,9 @@ function LeaderboardRoute() {
 
 function AppContent() {
   const navigate = useNavigate();
+  const location = useLocation();
   const refreshAuth = useAuthStore((state) => state.refreshAuth);
+  const multiplayerRoomId = new URLSearchParams(location.search).get('room') ?? undefined;
 
   // Re-validate any persisted session against the API on load.
   useEffect(() => {
@@ -159,7 +161,12 @@ function AppContent() {
           <Route path="/" element={<Game />} />
           <Route
             path="/multiplayer"
-            element={<MultiplayerGame onBack={() => navigate('/')} />}
+            element={
+              <MultiplayerGame
+                roomId={multiplayerRoomId}
+                onBack={() => navigate('/')}
+              />
+            }
           />
           <Route path="/login" element={<LoginRoute />} />
           <Route path="/profile" element={<ProfileRoute />} />

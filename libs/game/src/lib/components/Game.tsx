@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useElementSize } from '@mantine/hooks';
 import {
   Container,
@@ -53,6 +53,11 @@ export function Game({
     'classic' | 'modern' | 'zen'
   >(boardTheme);
 
+  // AI mode state
+  const [gameMode, setGameMode] = useState<'human' | 'ai'>('human');
+  const [aiThinking, setAiThinking] = useState(false);
+  const aiTimerRef = useRef<number | null>(null);
+
   // Test mode state for development
   const [useTestGame, setUseTestGame] = useState(initialUseTestGame);
 
@@ -70,6 +75,113 @@ export function Game({
     setRefreshKey((prev) => prev + 1);
   }, []);
 
+  const clearAiTimer = useCallback(() => {
+    if (aiTimerRef.current !== null) {
+      window.clearTimeout(aiTimerRef.current);
+      aiTimerRef.current = null;
+    }
+  }, []);
+
+  const aiPlayer = Player.WHITE;
+  const humanPlayer = Player.BLACK;
+
+  const gameState = gameEngine.getGameState();
+
+  const pickAIMove = useCallback((): { type: MoveType; position?: Position } => {
+    const state = gameEngine.getGameState();
+    const captureMoves: { position: Position; score: number }[] = [];
+    const legalMoves: Position[] = [];
+
+    for (let y = 0; y < state.boardSize; y += 1) {
+      for (let x = 0; x < state.boardSize; x += 1) {
+        const position = { x, y };
+        if (state.board[y][x] !== null) {
+          continue;
+        }
+
+        const simulation = new GameEngine({
+          boardSize: state.boardSize,
+          komi: state.komi,
+          gameType: 'local',
+          players: {
+            black: 'Black Player',
+            white: 'White Player',
+          },
+        });
+
+        simulation.loadGameState(state);
+        const result = simulation.makeMove(aiPlayer, MoveType.PLACE_STONE, position);
+
+        if (!result.success) {
+          continue;
+        }
+
+        if (result.capturedStones && result.capturedStones.length > 0) {
+          captureMoves.push({
+            position,
+            score: result.capturedStones.length,
+          });
+        } else {
+          legalMoves.push(position);
+        }
+      }
+    }
+
+    if (captureMoves.length > 0) {
+      const bestCapture = captureMoves.reduce((best, candidate) =>
+        candidate.score > best.score ? candidate : best,
+      captureMoves[0]);
+      return { type: MoveType.PLACE_STONE, position: bestCapture.position };
+    }
+
+    if (legalMoves.length > 0) {
+      const randomPosition = legalMoves[
+        Math.floor(Math.random() * legalMoves.length)
+      ];
+      return { type: MoveType.PLACE_STONE, position: randomPosition };
+    }
+
+    return { type: MoveType.PASS };
+  }, [gameEngine, aiPlayer]);
+
+  useEffect(() => {
+    if (gameMode !== 'ai') {
+      return () => {
+        clearAiTimer();
+        setAiThinking(false);
+      };
+    }
+
+    if (
+      gameState.phase !== GamePhase.PLAYING ||
+      gameState.currentPlayer !== aiPlayer ||
+      aiThinking
+    ) {
+      return undefined;
+    }
+
+    clearAiTimer();
+    setAiThinking(true);
+
+    aiTimerRef.current = window.setTimeout(() => {
+      aiTimerRef.current = null;
+      setAiThinking(false);
+
+      const aiMove = pickAIMove();
+      if (aiMove.type === MoveType.PLACE_STONE && aiMove.position) {
+        gameEngine.makeMove(aiPlayer, MoveType.PLACE_STONE, aiMove.position);
+      } else {
+        gameEngine.makeMove(aiPlayer, MoveType.PASS);
+      }
+
+      forceRefresh();
+    }, 450);
+
+    return () => {
+      clearAiTimer();
+    };
+  }, [gameMode, gameState.phase, gameState.currentPlayer, aiThinking, clearAiTimer, pickAIMove, forceRefresh, aiPlayer]);
+
   // Measure the available board area so the (fixed-pixel) Konva canvas can be
   // sized to fit any viewport instead of overflowing on small screens.
   const { ref: boardAreaRef, width: boardAreaW, height: boardAreaH } =
@@ -81,9 +193,6 @@ export function Game({
     boardAreaW && boardAreaH
       ? Math.max(220, Math.min(boardAreaW, boardAreaH, 520) - 8)
       : 450;
-
-  // Get current game state
-  const gameState = gameEngine.getGameState();
 
   // Handle stone placement or dead stone marking
   const handleIntersectionClick = useCallback(
@@ -104,6 +213,10 @@ export function Game({
       }
 
       // Normal stone placement during playing phase
+      if (gameMode === 'ai' && gameState.currentPlayer === aiPlayer) {
+        return;
+      }
+
       const result = gameEngine.makeMove(
         gameState.currentPlayer,
         MoveType.PLACE_STONE,
@@ -371,8 +484,8 @@ export function Game({
               ⚫ GO Game ⚪
             </Title>
 
-            {/* Theme Switcher - More Compact */}
-            <Group justify="center" align="center" gap="xs">
+            {/* Theme and Mode Switcher */}
+            <Group justify="center" align="center" gap="xs" style={{ flexWrap: 'wrap' }}>
               <IconPalette size={16} color="white" />
               <SegmentedControl
                 className="theme-switcher"
@@ -384,6 +497,23 @@ export function Game({
                   { label: 'Classic', value: 'classic' },
                   { label: 'Modern', value: 'modern' },
                   { label: 'Zen', value: 'zen' },
+                ]}
+                size="sm"
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  backdropFilter: 'blur(10px)',
+                }}
+                styles={{
+                  root: { border: '1px solid rgba(255,255,255,0.3)' },
+                }}
+              />
+              <SegmentedControl
+                className="mode-switcher"
+                value={gameMode}
+                onChange={(value) => setGameMode(value as 'human' | 'ai')}
+                data={[
+                  { label: 'Human', value: 'human' },
+                  { label: 'AI Opponent', value: 'ai' },
                 ]}
                 size="sm"
                 style={{
@@ -436,7 +566,8 @@ export function Game({
                 lastMove={gameState.lastMove?.position}
                 onIntersectionClick={handleIntersectionClick}
                 interactive={
-                  gameState.phase === GamePhase.PLAYING ||
+                  (gameState.phase === GamePhase.PLAYING &&
+                    (gameMode === 'human' || gameState.currentPlayer !== aiPlayer)) ||
                   gameState.phase === GamePhase.SCORING
                 }
                 deadStones={deadStones}

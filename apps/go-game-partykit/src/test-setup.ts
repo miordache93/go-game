@@ -38,14 +38,46 @@ vi.mock('react-konva', () => ({
   Text: vi.fn(() => null),
 }));
 
+class MockStorage {
+  private values = new Map<string, unknown>();
+  private alarm: number | null = null;
+
+  async get<T = unknown>(key: string): Promise<T | undefined> {
+    return this.values.get(key) as T | undefined;
+  }
+
+  async put<T = unknown>(key: string, value: T): Promise<void> {
+    this.values.set(key, value);
+  }
+
+  async delete(key: string): Promise<boolean> {
+    return this.values.delete(key);
+  }
+
+  async setAlarm(scheduledTime: number | Date): Promise<void> {
+    this.alarm =
+      scheduledTime instanceof Date ? scheduledTime.getTime() : scheduledTime;
+  }
+
+  async getAlarm(): Promise<number | null> {
+    return this.alarm;
+  }
+
+  async deleteAlarm(): Promise<void> {
+    this.alarm = null;
+  }
+}
+
 // Mock PartyKit Party class and related utilities
 class MockParty {
   id: string;
   env: Record<string, string>;
+  storage: MockStorage;
   
   constructor(id = 'test-party') {
     this.id = id;
     this.env = {};
+    this.storage = new MockStorage();
   }
 
   broadcast(message: string | ArrayBuffer | Uint8Array, without?: string[]) {
@@ -149,4 +181,4 @@ afterEach(() => {
 });
 
 // Export mock classes for use in tests
-export { MockParty, MockConnection, MockWebSocket };
+export { MockParty, MockConnection, MockStorage, MockWebSocket };

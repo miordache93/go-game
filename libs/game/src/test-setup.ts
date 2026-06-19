@@ -19,9 +19,9 @@ Object.defineProperty(window, 'matchMedia', {
 
 // Mock ResizeObserver for components that use it
 class MockResizeObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
 }
 
 Object.defineProperty(window, 'ResizeObserver', {
@@ -31,9 +31,9 @@ Object.defineProperty(window, 'ResizeObserver', {
 
 // Mock IntersectionObserver for components that use it
 class MockIntersectionObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
 }
 
 Object.defineProperty(window, 'IntersectionObserver', {

@@ -41,6 +41,21 @@ The Go Game has successfully completed its MVP phase and core multiplayer functi
 5. 🚧 Create user profile UI components
 6. 🚧 Build leaderboard display
 
+### 🧾 PRD Addendum: Nice-to-Have Feature Proposals
+
+These features are non-blocking for the core two-player multiplayer release. They should be considered after the join, invite, rejoin, move validation, and game-completion paths are reliable.
+
+| Feature | User Value | Proposed Scope | Acceptance Signal |
+| --- | --- | --- | --- |
+| In-game chat | Players can coordinate, clarify scoring, and keep matches social without leaving the game. | Room-scoped text chat for players and spectators, sanitized input, basic rate limiting, and mute/report controls before wider release. | Two active players can exchange messages during a live room; spectators can participate only when room chat is enabled. |
+| Multiplayer leaderboard | Players have a reason to return and improve through visible ranking progression. | Global and friends-only leaderboard views using existing ELO/game stats, with filters for board size and recent activity. | Completed multiplayer games update rankings and the leaderboard displays current rank, rating, wins, losses, and games played. |
+| Touch-to-speak | Mobile users can communicate quickly without typing during a match. | Optional push-and-hold voice input for short room messages or live voice snippets, gated by microphone permission and a visible privacy state. | A player can hold a touch control, record/send a short voice message, and other room participants can play it back with clear sender attribution. |
+
+**Product guardrails:**
+- Keep these features behind feature flags until core multiplayer stability is proven.
+- Default private/safety-sensitive communication features to off or explicit opt-in.
+- Avoid blocking gameplay if chat, leaderboard, or voice services fail.
+
 ## 🏗️ Technical Architecture Foundation
 
 Before diving into the sprints, here's the scalable architecture that will support all future features:

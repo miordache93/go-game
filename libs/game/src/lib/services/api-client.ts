@@ -250,7 +250,7 @@ class ApiClient {
   }
 
   async getUserStats(userId?: string) {
-    const url = userId ? `/game/user/${userId}/stats` : '/game/user/stats';
+    const url = userId ? `/game/user/${userId}/stats` : '/game/user/me/stats';
     const response = await this.client.get(url);
     return response.data;
   }

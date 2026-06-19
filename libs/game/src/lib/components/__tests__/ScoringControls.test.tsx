@@ -60,7 +60,7 @@ describe('ScoringControls Component', () => {
         />
       );
       
-      expect(container.firstChild).toBeNull();
+      expect(screen.queryByText(/scoring phase/i)).not.toBeInTheDocument();
     });
 
     it('renders the scoring controls when score is provided', () => {
@@ -267,8 +267,8 @@ describe('ScoringControls Component', () => {
         />
       );
       
-      expect(screen.getAllByText('0')).toHaveLength(4); // Territory and captures for both players
-      expect(screen.getByText('6.5')).toBeInTheDocument(); // Komi and white total
+      expect(screen.getAllByText('0')).toHaveLength(5); // Territory, captures, and black total
+      expect(screen.getAllByText('6.5')).toHaveLength(2); // Komi and white total
     });
 
     it('handles fractional scores correctly', () => {

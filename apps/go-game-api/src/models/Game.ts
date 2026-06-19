@@ -156,6 +156,7 @@ const GameSchema = new Schema<IGame>(
     roomId: {
       type: String,
       sparse: true,
+      unique: true,
       index: true,
     },
     players: {

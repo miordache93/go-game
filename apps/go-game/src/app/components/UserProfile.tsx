@@ -4,7 +4,10 @@ import { useAuthStore, useUserStats } from '@go-game/game';
 
 export function UserProfile() {
   const { user, logout, isAuthenticated } = useAuthStore();
-  const { data: stats, isLoading, error } = useUserStats();
+  const { data: stats, isLoading, error } = useUserStats(
+    user?.id,
+    isAuthenticated && !!user?.id
+  );
 
   if (!isAuthenticated || !user) {
     return (

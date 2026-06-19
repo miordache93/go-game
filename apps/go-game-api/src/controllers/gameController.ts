@@ -197,7 +197,7 @@ class GameController {
         data: game
       });
     } catch (error: any) {
-      return res.status(400).json({
+      return res.status(500).json({
         success: false,
         error: error.message
       });

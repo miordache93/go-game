@@ -20,6 +20,12 @@ export function AuthForm() {
   const { login, register, isLoading, error, clearError } = useAuthStore();
   const { addNotification } = useUIStore();
 
+  const handleModeChange = (value: string | null) => {
+    if (value === 'login' || value === 'register') {
+      setMode(value);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
@@ -40,14 +46,14 @@ export function AuthForm() {
           message: 'Welcome to Go Game!',
         });
       }
-    } catch (err) {
+    } catch {
       // Error is already handled in the store
     }
   };
 
   return (
     <Card shadow="sm" padding="lg" radius="md" withBorder maw={400} mx="auto">
-      <Tabs value={mode} onChange={(value) => setMode(value as any)}>
+      <Tabs value={mode} onChange={handleModeChange} keepMounted={false}>
         <Tabs.List grow>
           <Tabs.Tab value="login">Login</Tabs.Tab>
           <Tabs.Tab value="register">Register</Tabs.Tab>

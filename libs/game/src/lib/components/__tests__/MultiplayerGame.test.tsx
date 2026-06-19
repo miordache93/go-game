@@ -1,25 +1,11 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from './test-utils';
+import { render, screen, fireEvent, mockPartyKitState } from './test-utils';
 import { MultiplayerGame } from '../MultiplayerGame';
 import { Player, GamePhase, BoardSize } from '@go-game/types';
 import { PlayerRole } from '@go-game/partykit-protocol';
 
-// Mock PartyKit client
-const mockPartyKitClient = {
-  connect: vi.fn(),
-  disconnect: vi.fn(),
-  makeMove: vi.fn(),
-  pass: vi.fn(),
-  resign: vi.fn(),
-  markDead: vi.fn(),
-  finalizeGame: vi.fn(),
-  resumePlaying: vi.fn(),
-};
-
-vi.mock('../../services/partykit-client', () => ({
-  PartyKitClient: vi.fn().mockImplementation(() => mockPartyKitClient),
-}));
+const mockPartyKitClient = mockPartyKitState.client;
 
 // Mock createRoomId function
 vi.mock('@go-game/partykit-protocol', () => ({
@@ -129,6 +115,14 @@ describe('MultiplayerGame Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPartyKitState.activeGameState = mockGameState;
+    mockPartyKitState.activePlayers = mockPlayers;
+    mockPartyKitState.activeRole = PlayerRole.BLACK_PLAYER;
+    mockPartyKitState.clientConfig = null;
+    mockPartyKitState.shouldHydrate = true;
+    mockPartyKitState.fetchAvailableRooms.mockImplementation(
+      () => new Promise(() => undefined)
+    );
   });
 
   describe('Initial State and Modals', () => {
@@ -136,14 +130,14 @@ describe('MultiplayerGame Component', () => {
       render(<MultiplayerGame />);
       
       expect(screen.getByText(/multiplayer go game/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /create new room/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /join existing room/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /create room/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /enter room id/i })).toBeInTheDocument();
     });
 
     it('shows create room form when create button is clicked', async () => {
       render(<MultiplayerGame />);
       
-      const createButton = screen.getByRole('button', { name: /create new room/i });
+      const createButton = screen.getByRole('button', { name: /create room/i });
       fireEvent.click(createButton);
       
       expect(screen.getByText(/create new room/i)).toBeInTheDocument();
@@ -154,10 +148,10 @@ describe('MultiplayerGame Component', () => {
     it('shows join room form when join button is clicked', async () => {
       render(<MultiplayerGame />);
       
-      const joinButton = screen.getByRole('button', { name: /join existing room/i });
+      const joinButton = screen.getByRole('button', { name: /enter room id/i });
       fireEvent.click(joinButton);
       
-      expect(screen.getByText(/join room/i)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /join room/i })).toBeInTheDocument();
       expect(screen.getByLabelText(/your name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/room id/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /join room/i })).toBeInTheDocument();
@@ -176,7 +170,7 @@ describe('MultiplayerGame Component', () => {
       render(<MultiplayerGame />);
       
       // Navigate to create room form
-      fireEvent.click(screen.getByRole('button', { name: /create new room/i }));
+      fireEvent.click(screen.getByRole('button', { name: /create room/i }));
       
       // Fill in player name
       const nameInput = screen.getByLabelText(/your name/i);
@@ -192,10 +186,23 @@ describe('MultiplayerGame Component', () => {
     it('disables create button when name is empty', () => {
       render(<MultiplayerGame />);
       
-      fireEvent.click(screen.getByRole('button', { name: /create new room/i }));
+      fireEvent.click(screen.getByRole('button', { name: /create room/i }));
       
       const createButton = screen.getByRole('button', { name: /create room/i });
       expect(createButton).toBeDisabled();
+    });
+    it('creates private rooms when the privacy option is checked', async () => {
+      render(<MultiplayerGame />);
+
+      fireEvent.click(screen.getByRole('button', { name: /create room/i }));
+      fireEvent.change(screen.getByLabelText(/your name/i), {
+        target: { value: 'Alice' },
+      });
+      fireEvent.click(screen.getByLabelText(/private room/i));
+      fireEvent.click(screen.getByRole('button', { name: /create room/i }));
+
+      expect(mockPartyKitState.clientConfig?.isPrivate).toBe(true);
+      expect(mockPartyKitClient.connect).toHaveBeenCalled();
     });
   });
 
@@ -204,7 +211,7 @@ describe('MultiplayerGame Component', () => {
       render(<MultiplayerGame />);
       
       // Navigate to join room form
-      fireEvent.click(screen.getByRole('button', { name: /join existing room/i }));
+      fireEvent.click(screen.getByRole('button', { name: /enter room id/i }));
       
       // Fill in details
       const nameInput = screen.getByLabelText(/your name/i);
@@ -222,7 +229,7 @@ describe('MultiplayerGame Component', () => {
     it('disables join button when name or room ID is empty', () => {
       render(<MultiplayerGame />);
       
-      fireEvent.click(screen.getByRole('button', { name: /join existing room/i }));
+      fireEvent.click(screen.getByRole('button', { name: /enter room id/i }));
       
       const joinButton = screen.getByRole('button', { name: /join room/i });
       expect(joinButton).toBeDisabled();
@@ -238,22 +245,42 @@ describe('MultiplayerGame Component', () => {
       fireEvent.change(roomInput, { target: { value: 'room-123' } });
       expect(joinButton).toBeDisabled();
     });
+
+    it('shows available public rooms and joins one', async () => {
+      mockPartyKitState.fetchAvailableRooms.mockResolvedValueOnce([
+        {
+          id: 'public-room-123',
+          playerNames: ['Alice'],
+          playerCount: 1,
+          spectatorCount: 0,
+          createdAt: new Date().toISOString(),
+          waitingExpiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+          lastActivity: new Date().toISOString(),
+        },
+      ]);
+
+      render(<MultiplayerGame />);
+
+      expect(await screen.findByText(/alice is waiting/i)).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText(/your name/i), {
+        target: { value: 'Bob' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /join/i }));
+
+      expect(mockPartyKitState.clientConfig?.roomId).toBe('public-room-123');
+      expect(mockPartyKitClient.connect).toHaveBeenCalled();
+    });
   });
 
   describe('Game State Display', () => {
     // Helper to render connected multiplayer game
     const renderConnectedGame = () => {
-      const { rerender } = render(<MultiplayerGame />);
-      
-      // Simulate connection by rerendering with connected state
-      rerender(
+      return render(
         <MultiplayerGame
           roomId="test-room-123"
           playerName="Alice"
         />
       );
-      
-      return { rerender };
     };
 
     it('shows connection status badge', () => {
@@ -266,8 +293,13 @@ describe('MultiplayerGame Component', () => {
     it('displays room ID', () => {
       renderConnectedGame();
       
-      expect(screen.getByText(/room:/)).toBeInTheDocument();
-      expect(screen.getByText(/test-room-123/)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          (_, element) =>
+            element?.tagName === 'SPAN' &&
+            element.textContent === 'Room: test-room-123'
+        )
+      ).toBeInTheDocument();
     });
 
     it('shows player role badge', () => {
@@ -280,20 +312,15 @@ describe('MultiplayerGame Component', () => {
 
   describe('Board Interaction', () => {
     const renderGameWithState = (gameState = mockGameState, players = mockPlayers) => {
-      const TestComponent = () => {
-        const [showModal, setShowModal] = React.useState(false);
-        const [connectedGameState, setGameState] = React.useState(gameState);
-        const [connectedPlayers, setPlayers] = React.useState(players);
-        
-        return (
-          <MultiplayerGame
-            roomId="test-room"
-            playerName="Alice"
-          />
-        );
-      };
+      mockPartyKitState.activeGameState = gameState;
+      mockPartyKitState.activePlayers = players;
       
-      return render(<TestComponent />);
+      return render(
+        <MultiplayerGame
+          roomId="test-room"
+          playerName="Alice"
+        />
+      );
     };
 
     it('allows board interaction for players during their turn', () => {
@@ -451,6 +478,7 @@ describe('MultiplayerGame Component', () => {
 
   describe('Connection States', () => {
     it('shows connecting message while waiting for connection', () => {
+      mockPartyKitState.shouldHydrate = false;
       render(
         <MultiplayerGame
           roomId="test-room"
@@ -462,6 +490,7 @@ describe('MultiplayerGame Component', () => {
     });
 
     it('shows cancel button during connection', () => {
+      mockPartyKitState.shouldHydrate = false;
       render(
         <MultiplayerGame
           roomId="test-room"
@@ -600,7 +629,7 @@ describe('MultiplayerGame Component', () => {
     it('has proper form labels and button text', () => {
       render(<MultiplayerGame />);
       
-      fireEvent.click(screen.getByRole('button', { name: /create new room/i }));
+      fireEvent.click(screen.getByRole('button', { name: /create room/i }));
       
       expect(screen.getByLabelText(/your name/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /back/i })).toBeInTheDocument();

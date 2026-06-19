@@ -23,8 +23,8 @@ interface PartykitGameDto {
     black: { id: string; name: string; userId?: string };
     white: { id: string; name: string; userId?: string };
   };
-  gameState: any;
-  moves: any[];
+  gameState: unknown;
+  moves: unknown[];
   result: {
     winner?: string;
     scores?: {
@@ -35,6 +35,15 @@ interface PartykitGameDto {
   };
   startedAt: Date;
   completedAt: Date;
+}
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 11000
+  );
 }
 
 class GameService {
@@ -197,6 +206,11 @@ class GameService {
 
   // Save game from PartyKit webhook
   async savePartykitGame(data: PartykitGameDto): Promise<IGame> {
+    const existingGame = await Game.findOne({ roomId: data.roomId });
+    if (existingGame) {
+      return existingGame;
+    }
+
     // Find or create users
     const [blackUser, whiteUser] = await Promise.all([
       this.findOrCreateUser(data.players.black),
@@ -218,7 +232,18 @@ class GameService {
       isRanked: true
     });
 
-    await game.save();
+    try {
+      await game.save();
+    } catch (error: unknown) {
+      if (isDuplicateKeyError(error)) {
+        const savedGame = await Game.findOne({ roomId: data.roomId });
+        if (savedGame) {
+          return savedGame;
+        }
+      }
+
+      throw error;
+    }
 
     // Update user statistics and ELO
     if (data.result.winner) {
@@ -503,7 +528,7 @@ class GameService {
   }
 
   // Update user statistics after game
-  private async updateUserStats(winner: IUser, loser: IUser, updateElo: boolean = true) {
+  private async updateUserStats(winner: IUser, loser: IUser, updateElo = true) {
     // Update winner stats
     if (!winner.stats) {
       winner.stats = {
