@@ -25,7 +25,8 @@ import { apiClient } from '../services/api-client';
 import { useAuthStore } from '../stores/auth-store';
 import { GameState, Position, Player, GamePhase } from '@go-game/types';
 import { PlayerInfo, PlayerRole, PublicRoomInfo, createRoomId } from '@go-game/partykit-protocol';
-import { IconCopy, IconLink, IconList, IconLogin, IconLock, IconPlus, IconRefresh } from '@tabler/icons-react';
+import { IconList, IconLogin, IconLock, IconPlus, IconRefresh } from '@tabler/icons-react';
+import { ShareRoom } from './ShareRoom';
 
 interface MultiplayerGameProps {
   roomId?: string;
@@ -70,14 +71,6 @@ function parseRoomJoinInput(value: string): string {
   } catch {
     return trimmedValue;
   }
-}
-
-async function copyTextToClipboard(value: string): Promise<void> {
-  if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
-    throw new Error('Clipboard API is unavailable');
-  }
-
-  await navigator.clipboard.writeText(value);
 }
 
 export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlayerName, onBack }: MultiplayerGameProps) {
@@ -822,62 +815,7 @@ export function MultiplayerGame({ roomId: initialRoomId, playerName: initialPlay
                 Public listing expires in {formatTimeRemaining(currentRoomWaitingExpiresAt)}
               </Text>
             )}
-            <Text size="xs" c="dimmed" mb={4}>Invite link</Text>
-            <Text size="xs" c="dimmed" style={{ wordBreak: 'break-all', fontFamily: 'monospace' }}>
-              {inviteLink}
-            </Text>
-            <Button
-              size="sm"
-              variant="filled"
-              mt="sm"
-              fullWidth
-              leftSection={<IconLink size={16} />}
-              onClick={async () => {
-                try {
-                  await copyTextToClipboard(inviteLink);
-                  notifications.show({
-                    title: '✅ Copied!',
-                    message: 'Invite link copied',
-                    color: 'green',
-                  });
-                } catch {
-                  notifications.show({
-                    title: 'Invite link',
-                    message: inviteLink,
-                    color: 'blue',
-                    autoClose: false,
-                  });
-                }
-              }}
-            >
-              Copy Invite Link
-            </Button>
-            <Button
-              size="xs"
-              variant="subtle"
-              mt="xs"
-              fullWidth
-              leftSection={<IconCopy size={14} />}
-              onClick={async () => {
-                try {
-                  await copyTextToClipboard(roomId);
-                  notifications.show({
-                    title: '✅ Copied!',
-                    message: 'Room ID copied',
-                    color: 'green',
-                  });
-                } catch {
-                  notifications.show({
-                    title: 'Room ID',
-                    message: roomId,
-                    color: 'blue',
-                    autoClose: false,
-                  });
-                }
-              }}
-            >
-              Copy Room ID
-            </Button>
+            <ShareRoom roomId={roomId} inviteLink={inviteLink} playerName={playerName} />
             <Text size="xs" c="dimmed" mt="xs">
               Anyone with the link can join this room.
             </Text>

@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
 import { User, IUser } from '../models/User';
+import { RevokedToken } from '../models/RevokedToken';
 import { config } from '../config/env';
 
 /**
@@ -17,6 +19,7 @@ export interface AuthRequest extends Request {
 interface JWTPayload {
   userId: string;
   username: string;
+  jti?: string;
   iat?: number;
   exp?: number;
 }
@@ -100,7 +103,7 @@ export const authenticate = async (
  */
 export const optionalAuth = async (
   req: AuthRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
@@ -132,22 +135,22 @@ export const optionalAuth = async (
  * Generate JWT token
  */
 export const generateToken = (userId: string, username: string): string => {
-  return jwt.sign(
-    { userId, username },
-    config.jwtSecret,
-    { expiresIn: config.jwtExpiresIn } as any
-  );
+  const options: jwt.SignOptions = {
+    expiresIn: config.jwtExpiresIn as jwt.SignOptions['expiresIn'],
+  };
+  return jwt.sign({ userId, username }, config.jwtSecret, options);
 };
 
 /**
- * Generate refresh token
+ * Generate refresh token. Each token carries a unique `jti` so it can be
+ * individually revoked (logout / rotation) via the RevokedToken denylist.
  */
 export const generateRefreshToken = (userId: string): string => {
-  return jwt.sign(
-    { userId },
-    config.jwtRefreshSecret,
-    { expiresIn: config.jwtRefreshExpiresIn } as any
-  );
+  const options: jwt.SignOptions = {
+    expiresIn: config.jwtRefreshExpiresIn as jwt.SignOptions['expiresIn'],
+    jwtid: randomUUID(),
+  };
+  return jwt.sign({ userId }, config.jwtRefreshSecret, options);
 };
 
 /**
@@ -155,4 +158,42 @@ export const generateRefreshToken = (userId: string): string => {
  */
 export const verifyRefreshToken = (token: string): JWTPayload => {
   return jwt.verify(token, config.jwtRefreshSecret) as JWTPayload;
+};
+
+/**
+ * Add a refresh token's `jti` to the denylist until its natural expiry.
+ * No-op when the token lacks a `jti` (e.g. legacy tokens issued before
+ * rotation existed). Failures are swallowed so logout/refresh never 500 on a
+ * transient DB hiccup — the access token still expires on its own.
+ */
+export const revokeRefreshToken = async (
+  decoded: JWTPayload
+): Promise<void> => {
+  if (!decoded?.jti || !decoded.exp) return;
+  try {
+    await RevokedToken.updateOne(
+      { jti: decoded.jti },
+      {
+        $setOnInsert: {
+          jti: decoded.jti,
+          userId: decoded.userId,
+          expiresAt: new Date(decoded.exp * 1000),
+        },
+      },
+      { upsert: true }
+    );
+  } catch {
+    // best-effort denylist; ignore transient write errors
+  }
+};
+
+/**
+ * Whether a refresh token's `jti` has been revoked.
+ */
+export const isRefreshTokenRevoked = async (
+  jti?: string
+): Promise<boolean> => {
+  if (!jti) return false;
+  const existing = await RevokedToken.exists({ jti });
+  return existing != null;
 };

@@ -90,6 +90,10 @@ These targets are either [inferred automatically](https://nx.dev/concepts/inferr
 
 ## Architecture
 
+📐 **Full system architecture & app flows:** see [`ARCHITECTURE.md`](ARCHITECTURE.md)
+— topology, state management, and diagrammed flows (auth, single-player,
+multiplayer, persistence, mobile).
+
 ### Monorepo Structure
 
 ```

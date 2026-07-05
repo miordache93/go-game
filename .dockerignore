@@ -1,0 +1,28 @@
+node_modules
+**/node_modules
+dist
+tmp
+out-tsc
+coverage
+.nx/cache
+.nx/workspace-data
+
+# native mobile shells (not needed to build the API)
+android
+ios
+
+.git
+.github
+.vscode
+.idea
+.cursor
+.claude
+
+# env / secrets — never bake into the image
+.env
+.env.*
+**/.env
+**/.env.*
+
+*.log
+.DS_Store

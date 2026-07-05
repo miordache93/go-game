@@ -1,10 +1,13 @@
 import { Request, Response } from 'express';
 import { User } from '../models/User';
+import { Game } from '../models/Game';
 import { ApiError, asyncHandler } from '../middleware/errorHandler';
 import { 
-  generateToken, 
-  generateRefreshToken, 
-  verifyRefreshToken 
+  generateToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+  revokeRefreshToken,
+  isRefreshTokenRevoked,
 } from '../middleware/auth';
 
 /**
@@ -115,12 +118,20 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
   try {
     // Verify refresh token
     const decoded = verifyRefreshToken(refreshToken);
-    
+
+    // Reject tokens that have been revoked (logout / prior rotation)
+    if (await isRefreshTokenRevoked(decoded.jti)) {
+      throw new ApiError(401, 'Invalid refresh token');
+    }
+
     // Find user
     const user = await User.findById(decoded.userId);
     if (!user || !user.isActive) {
       throw new ApiError(401, 'Invalid refresh token');
     }
+
+    // Rotate: invalidate the presented refresh token so it can't be reused.
+    await revokeRefreshToken(decoded);
 
     // Generate new tokens
     const newAccessToken = generateToken(user._id.toString(), user.username);
@@ -142,16 +153,55 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
  * Logout user
  */
 export const logout = asyncHandler(async (req: Request, res: Response) => {
-  // In a production app, you might want to:
-  // 1. Invalidate the refresh token in a blacklist
-  // 2. Clear any server-side sessions
-  // 3. Update user's last activity
-  
+  // Revoke the presented refresh token so it can't be used after logout.
+  // The access token is short-lived and expires on its own.
+  const { refreshToken } = req.body ?? {};
+  if (refreshToken) {
+    try {
+      const decoded = verifyRefreshToken(refreshToken);
+      await revokeRefreshToken(decoded);
+    } catch {
+      // Token already invalid/expired — nothing to revoke.
+    }
+  }
+
   res.json({
     success: true,
     message: 'Logged out successfully',
   });
 });
+
+/**
+ * Permanently delete the authenticated user's account and associated data.
+ * Required by the Apple App Store for apps that support account creation.
+ *
+ * Deleting the user document immediately invalidates all of their tokens,
+ * since both `authenticate` and the refresh flow look the user up by id.
+ */
+export const deleteAccount = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = (req as any).userId;
+
+    // Remove games the user played in and any spectator references.
+    await Game.deleteMany({
+      $or: [{ 'players.black': userId }, { 'players.white': userId }],
+    });
+    await Game.updateMany(
+      { spectators: userId },
+      { $pull: { spectators: userId } }
+    );
+
+    const deleted = await User.findByIdAndDelete(userId);
+    if (!deleted) {
+      throw new ApiError(404, 'User not found');
+    }
+
+    res.json({
+      success: true,
+      message: 'Account and associated data permanently deleted',
+    });
+  }
+);
 
 /**
  * Get current user profile

@@ -21,7 +21,9 @@ export const config = {
   // Server
   nodeEnv,
   isProduction,
-  host: process.env.HOST || 'localhost',
+  // In containers/PaaS the process must listen on all interfaces, not just
+  // loopback, or external health checks and routing can't reach it.
+  host: process.env.HOST || (isProduction ? '0.0.0.0' : 'localhost'),
   port: parseInt(process.env.PORT || '8080', 10),
 
   // MongoDB
@@ -38,12 +40,21 @@ export const config = {
   partykitWebhookSecret:
     process.env.PARTYKIT_WEBHOOK_SECRET || DEV_PARTYKIT_WEBHOOK_SECRET,
 
-  // CORS
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:4200',
+  // CORS — comma-separated list of allowed web origins. Capacitor/native
+  // origins are added automatically in main.ts; only web origins go here.
+  corsOrigins: (process.env.CORS_ORIGIN || 'http://localhost:4200')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
 
   // Rate Limiting
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
   rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
+  // Stricter cap for auth endpoints (login/register) to blunt brute force.
+  authRateLimitMaxRequests: parseInt(
+    process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || '10',
+    10
+  ),
 
   // Logging
   logLevel: process.env.LOG_LEVEL || 'debug',
@@ -56,6 +67,7 @@ const requiredEnvVars = [
   'JWT_REFRESH_SECRET',
   'PARTYKIT_WEBHOOK_SECRET',
   'MONGODB_URI',
+  'CORS_ORIGIN',
 ];
 
 if (isProduction) {

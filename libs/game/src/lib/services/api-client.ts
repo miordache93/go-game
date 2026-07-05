@@ -189,9 +189,12 @@ class ApiClient {
   }
 
   async logout() {
-    // Best-effort server notification; ignore failures (e.g. expired token)
+    // Best-effort server notification; ignore failures (e.g. expired token).
+    // Send the refresh token so the server can revoke it (denylist).
     try {
-      await this.client.post('/auth/logout');
+      await this.client.post('/auth/logout', {
+        refreshToken: this.refreshToken,
+      });
     } catch {
       // no-op
     }
@@ -214,6 +217,16 @@ class ApiClient {
       result.user = normalizeUser(result.user);
     }
     return result;
+  }
+
+  /**
+   * Permanently delete the current account and all associated data.
+   * Clears local auth on success so the app returns to a logged-out state.
+   */
+  async deleteAccount() {
+    const response = await this.client.delete('/auth/account');
+    this.clearAuth();
+    return response.data;
   }
 
   // Game endpoints

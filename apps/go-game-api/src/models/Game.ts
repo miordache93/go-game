@@ -154,10 +154,11 @@ const ChatSchema = new Schema<IChat>(
 const GameSchema = new Schema<IGame>(
   {
     roomId: {
+      // `unique` already creates an index; a separate `index: true` would
+      // register a duplicate (Mongoose warns at startup).
       type: String,
       sparse: true,
       unique: true,
-      index: true,
     },
     players: {
       black: {
@@ -280,7 +281,7 @@ const GameSchema = new Schema<IGame>(
 GameSchema.index({ 'players.black': 1, createdAt: -1 });
 GameSchema.index({ 'players.white': 1, createdAt: -1 });
 GameSchema.index({ status: 1, createdAt: -1 });
-GameSchema.index({ roomCode: 1 });
+// roomCode is already indexed by its `unique: true` field option above.
 GameSchema.index({ 'gameState.phase': 1 });
 
 /**

@@ -1,5 +1,11 @@
 # GO Game UI Architecture
 
+> ⚠️ **Outdated / historical planning doc.** This was written early and does
+> **not** reflect the current structure (it references `apps/web-app`,
+> `apps/storybook`, `libs/features/` that don't exist). For the accurate,
+> current architecture and app flows, see
+> [`../ARCHITECTURE.md`](../ARCHITECTURE.md). Kept for historical context only.
+
 ## 🏗️ Tech Stack Decision
 
 ```json

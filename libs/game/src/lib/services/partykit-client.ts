@@ -59,14 +59,20 @@ function getStableClientId(roomId: string): string {
     return createClientId();
   }
 
+  // Use sessionStorage, NOT localStorage: the client id is the player's
+  // connection identity on the server. sessionStorage is scoped per browser
+  // tab, so two tabs in the same browser become two distinct players (while a
+  // reload within a tab still reconnects to the same seat). localStorage is
+  // shared across tabs, which made both tabs join as the same player and left
+  // the second seat unfilled — the game could never start.
   try {
-    const existingClientId = window.localStorage.getItem(storageKey);
+    const existingClientId = window.sessionStorage.getItem(storageKey);
     if (existingClientId) {
       return existingClientId;
     }
 
     const clientId = createClientId();
-    window.localStorage.setItem(storageKey, clientId);
+    window.sessionStorage.setItem(storageKey, clientId);
     return clientId;
   } catch {
     return createClientId();

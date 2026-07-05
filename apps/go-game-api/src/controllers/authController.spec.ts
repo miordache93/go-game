@@ -2,13 +2,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Request, Response } from 'express';
 import * as authController from './authController';
 import { User } from '../models/User';
+import { Game } from '../models/Game';
 import * as authMiddleware from '../middleware/auth';
 
 // Mock dependencies
 vi.mock('../models/User');
+vi.mock('../models/Game', () => ({
+  Game: {
+    deleteMany: vi.fn(),
+    updateMany: vi.fn(),
+  },
+}));
 vi.mock('../middleware/auth');
 
 const MockedUser = vi.mocked(User);
+const MockedGame = vi.mocked(Game);
 const MockedAuthMiddleware = vi.mocked(authMiddleware);
 
 // Helper function to create mock request/response objects
@@ -374,6 +382,42 @@ describe('AuthController', () => {
         success: true,
         message: 'Logged out successfully',
       });
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('deletes the user and their associated games', async () => {
+      (req as any).userId = 'mock-user-id';
+      MockedGame.deleteMany.mockResolvedValue({ deletedCount: 2 } as any);
+      MockedGame.updateMany.mockResolvedValue({} as any);
+      MockedUser.findByIdAndDelete.mockResolvedValue({ _id: 'mock-user-id' } as any);
+
+      await authController.deleteAccount(req, res);
+
+      expect(MockedGame.deleteMany).toHaveBeenCalledWith({
+        $or: [
+          { 'players.black': 'mock-user-id' },
+          { 'players.white': 'mock-user-id' },
+        ],
+      });
+      expect(MockedGame.updateMany).toHaveBeenCalledWith(
+        { spectators: 'mock-user-id' },
+        { $pull: { spectators: 'mock-user-id' } }
+      );
+      expect(MockedUser.findByIdAndDelete).toHaveBeenCalledWith('mock-user-id');
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Account and associated data permanently deleted',
+      });
+    });
+
+    it('returns 404 when the user does not exist', async () => {
+      (req as any).userId = 'non-existent';
+      MockedGame.deleteMany.mockResolvedValue({} as any);
+      MockedGame.updateMany.mockResolvedValue({} as any);
+      MockedUser.findByIdAndDelete.mockResolvedValue(null);
+
+      await expect(authController.deleteAccount(req, res)).rejects.toThrow();
     });
   });
 

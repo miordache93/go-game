@@ -11,6 +11,10 @@ and Google Play Store."
 - Frontend auto-deploys to GitHub Pages (`.github/workflows/deploy.yml`).
 - API + PartyKit are **not** deployed; DB is local MongoDB.
 - Secrets centralized in `apps/go-game-api/src/config/env.ts` (fails fast in prod).
+- API containerization is **in place**: `docker/api/Dockerfile` (multi-stage),
+  `docker/docker-compose.yml` (Mongo + API for local prod-parity), and a Render
+  blueprint (`render.yaml`). CORS now allows multiple web origins + Capacitor
+  origins, and the API binds `0.0.0.0` in production. Still needs a live host + Atlas.
 
 ---
 
@@ -21,20 +25,26 @@ over HTTPS. `localhost` is the device itself once installed.
 
 - [ ] **Provision MongoDB Atlas** (free M0 tier is fine to start). Get the SRV
       connection string.
-- [ ] **Deploy the API** (`apps/go-game-api`) to a host (Render / Railway / Fly.io).
-  - [ ] Add a `Dockerfile` (or use the host's Node buildpack) building
-        `nx build go-game-api` and running `dist/apps/go-game-api/main.js`.
-  - [ ] Set production env vars (see `apps/go-game-api/.env.example`):
+- [~] **Deploy the API** (`apps/go-game-api`) to a host (Render / Railway / Fly.io).
+  - [x] Add a `Dockerfile` building `nx build go-game-api` and running
+        `dist/apps/go-game-api/main.js` → `docker/api/Dockerfile` (multi-stage,
+        non-root, container healthcheck on `/health`). Build verified: the
+        artifact boots and serves `/health`.
+  - [ ] Push to the host (a `render.yaml` blueprint is ready) and set production
+        env vars (see `apps/go-game-api/.env.example`):
         `NODE_ENV=production`, `MONGODB_URI`, strong `JWT_SECRET`,
         `JWT_REFRESH_SECRET`, `PARTYKIT_WEBHOOK_SECRET`, `CORS_ORIGIN`.
-  - [ ] Confirm `env.ts` prod validation passes (it throws if secrets missing).
+  - [x] Confirm `env.ts` prod validation passes (it throws if secrets missing).
+        `CORS_ORIGIN` is now also required in production.
 - [ ] **Deploy PartyKit** (`apps/go-game-partykit`) via `npx partykit deploy`.
   - [ ] Confirm the prod host matches `partykit-client.ts` (`go-game-server.partykit.dev`)
         or update the client to the real deployed host.
   - [ ] Set the PartyKit env `PARTYKIT_WEBHOOK_SECRET` to match the API.
-- [ ] **Fix CORS for mobile origins.** `config.corsOrigin` currently defaults to
-      `http://localhost:4200`. Capacitor calls from `capacitor://localhost` (iOS)
-      and `https://localhost` (Android). Allow these + the web origin.
+- [x] **Fix CORS for mobile origins.** `main.ts` now accepts a comma-separated
+      `CORS_ORIGIN` list of web origins and automatically allows the Capacitor
+      origins (`capacitor://localhost`, `http(s)://localhost`, `ionic://localhost`).
+      Disallowed origins receive no CORS headers (browser-blocked) without a 500.
+      Verified for allowed web, Capacitor, and rejected origins.
 - [ ] **Verify** the deployed API health and a real query (e.g. leaderboard) over HTTPS.
 
 **Acceptance:** API reachable at a public HTTPS URL, PartyKit live over `wss://`,
@@ -62,9 +72,11 @@ against production backends.
 
 ## Phase 3 — Store submission gates (policy — rejections if skipped)
 
-- [ ] **In-app account deletion (Apple REQUIRED).** No delete endpoint exists today
-      (`authRoutes.ts` has register/login/refresh/logout/profile/stats only).
-  - [ ] Add `DELETE /auth/account` (authenticated) that removes the user + their data.
+- [~] **In-app account deletion (Apple REQUIRED).**
+  - [x] Added `DELETE /auth/account` (authenticated) — deletes the user, their
+        games, and spectator references. Deleting the user immediately invalidates
+        all their tokens (auth + refresh look the user up by id). Client method
+        `apiClient.deleteAccount()` added; covered by unit tests.
   - [ ] Add a "Delete account" action in the profile UI with confirmation.
 - [ ] **Privacy policy** published at a public URL (collects username/email/password).
 - [ ] **Terms of service** (recommended).
@@ -101,10 +113,20 @@ declarations drafted.
 - [ ] **Network resilience:** PartyKit auto-reconnect/backoff for flaky mobile networks;
       offline/empty/error states in the UI.
 - [ ] **Crash reporting + analytics** (e.g. Sentry).
-- [ ] **Fix drifted tests** (31 failing in `test:game` — stale selectors/CSS class names,
-      plus scoring assertions). Get the suite green.
-- [ ] **Cleanup:** remove duplicate Mongoose schema indexes (warnings on `username`,
-      `email`, `partykitId`, `roomCode`).
+- [x] **Fix drifted tests.** The `test:game` suite is now green (357/357 passing);
+      the previously reported 31 failures are resolved.
+- [x] **Cleanup:** removed duplicate Mongoose schema indexes on the `Game` model
+      (`roomId` had both `unique` and `index: true`; `roomCode` had `unique` plus a
+      redundant `schema.index()`). The `User` indexes were already single-definition.
+- [x] **API security hardening:** added `helmet` (HSTS, nosniff, frameguard, no
+      `x-powered-by`), a stricter rate limit on `/api/auth/login` + `/register`,
+      real logout (refresh-token revocation via a TTL denylist) and refresh-token
+      rotation. CORS allows configured web + Capacitor origins. `trust proxy` set
+      for accurate client IPs behind a PaaS proxy.
+- [x] **Input validation & NoSQL-injection defense:** `express-mongo-sanitize`
+      strips `$`/`.` operators from request payloads; express-validator chains
+      validate register/login/profile (email format, username pattern, bio/country
+      length, avatar must be an http(s) URL — blocks `javascript:` URIs).
 - [ ] **Performance:** verify Konva board rendering on low-end devices.
 
 **Acceptance:** Green test suite, clean API logs, crash reporting live, secure storage.
@@ -141,6 +163,16 @@ NX_API_URL=https://api.example.com/api npm run mobile:sync
 
 # Deploy PartyKit
 cd apps/go-game-partykit && npx partykit deploy
+
+# Build & run the API container (context must be the repo root)
+docker build -f docker/api/Dockerfile -t go-game-api .
+docker run --rm -p 8080:8080 \
+  -e MONGODB_URI=... -e JWT_SECRET=... -e JWT_REFRESH_SECRET=... \
+  -e PARTYKIT_WEBHOOK_SECRET=... -e CORS_ORIGIN=https://your-frontend \
+  go-game-api
+
+# Local full stack (Mongo + API) with prod parity
+docker compose -f docker/docker-compose.yml up --build
 ```
 
 ## Key files
@@ -149,6 +181,9 @@ cd apps/go-game-partykit && npx partykit deploy
 |---|---|
 | API env/secrets/CORS | `apps/go-game-api/src/config/env.ts`, `.env.example` |
 | API CORS usage | `apps/go-game-api/src/main.ts` |
+| API container | `docker/api/Dockerfile`, `.dockerignore` |
+| Local full stack | `docker/docker-compose.yml`, `docker/mongodb/init-mongo.js` |
+| API host deploy | `render.yaml` (Render blueprint) |
 | Auth routes (add delete here) | `apps/go-game-api/src/routes/authRoutes.ts` |
 | Frontend API base URL | `libs/game/src/lib/services/api-client.ts` (`NX_API_URL`) |
 | Token storage | `libs/game/src/lib/services/api-client.ts` (`localStorage`) |

@@ -1,0 +1,37 @@
+# Render Blueprint for the Go Game API.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Deploy: push this repo to GitHub, then in Render choose "New > Blueprint"
+# and point it at the repo. Render builds the Docker image from
+# docker/api/Dockerfile. Set the secret values (marked sync:false) and the
+# real MONGODB_URI (e.g. a MongoDB Atlas SRV string) in the dashboard.
+#
+# PartyKit is NOT deployed here — deploy it separately with `partykit deploy`.
+
+services:
+  - type: web
+    name: go-game-api
+    runtime: docker
+    dockerfilePath: ./docker/api/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      # Render injects PORT automatically; the app reads process.env.PORT.
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: PARTYKIT_WEBHOOK_SECRET
+        sync: false
+      # Comma-separated allowed web origins (e.g. the GitHub Pages URL).
+      # Capacitor/native origins are allowed automatically by the API.
+      - key: CORS_ORIGIN
+        sync: false
